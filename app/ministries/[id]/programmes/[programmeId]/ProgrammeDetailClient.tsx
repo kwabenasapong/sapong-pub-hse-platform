@@ -1,0 +1,157 @@
+"use client";
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { PageHeader, Button, BookStatusBadge, TranslationBadge, SizeBadge, WorkflowTracker } from "@/components/ui";
+import AddBookModal from "@/components/AddBookModal";
+import { Translation, SizeCategory, BookStatus, WorkflowStatus } from "@prisma/client";
+
+type WorkflowStep = { stepNumber: number; status: WorkflowStatus };
+type Book = {
+  id: string;
+  number: number;
+  title: string;
+  translation: Translation;
+  referenceAuthor: string | null;
+  sizeCategory: SizeCategory;
+  status: BookStatus;
+  workflowSteps: WorkflowStep[];
+};
+type Programme = {
+  id: string;
+  title: string;
+  defaultTranslation: Translation;
+  defaultReferenceAuthor: string | null;
+  status: string;
+  ministry: { id: string; name: string };
+  author: { id: string; name: string };
+  books: Book[];
+};
+
+const STEP_LABELS = ["Intake", "Analysis", "Outline", "Drafts", "Matter"];
+
+function currentStepLabel(steps: WorkflowStep[]) {
+  const active = steps.find((s) => s.status === "IN_PROGRESS");
+  if (active) return `Step ${active.stepNumber}: ${STEP_LABELS[active.stepNumber - 1]}`;
+  if (steps.every((s) => s.status === "APPROVED")) return "Complete";
+  const first = steps.find((s) => s.status === "PENDING");
+  if (first) return `Step ${first.stepNumber}: ${STEP_LABELS[first.stepNumber - 1]}`;
+  return "—";
+}
+
+export default function ProgrammeDetailClient({
+  programme,
+  ministryId,
+}: {
+  programme: Programme;
+  ministryId: string;
+}) {
+  const [showAddBook, setShowAddBook] = useState(false);
+  const router = useRouter();
+  const nextNumber = programme.books.length > 0
+    ? Math.max(...programme.books.map((b) => b.number)) + 1
+    : 1;
+
+  const complete = programme.books.filter((b) => b.status === "COMPLETE").length;
+  const inProgress = programme.books.filter((b) => b.status === "IN_PROGRESS").length;
+  const notStarted = programme.books.filter((b) => b.status === "NOT_STARTED").length;
+
+  return (
+    <div className="p-8 max-w-6xl">
+      <p className="text-xs text-stone-400 mb-4">
+        <Link href="/ministries" className="hover:text-stone-600">Ministries</Link>
+        <span className="mx-1.5">›</span>
+        <Link href={`/ministries/${ministryId}`} className="hover:text-stone-600">{programme.ministry.name}</Link>
+        <span className="mx-1.5">›</span>
+        {programme.title}
+      </p>
+
+      <PageHeader
+        title={programme.title}
+        subtitle={`${programme.status} · ${programme.defaultTranslation}${programme.defaultReferenceAuthor ? ` · ${programme.defaultReferenceAuthor}` : ""}`}
+        action={
+          <Button variant="primary" size="sm" onClick={() => setShowAddBook(true)}>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Book
+          </Button>
+        }
+      />
+
+      <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-stone-100 bg-stone-50">
+              <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider w-10">#</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Title</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Size</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Translation</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Status</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Workflow</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Current Step</th>
+              <th className="px-4 py-3" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-stone-100">
+            {programme.books.length === 0 && (
+              <tr>
+                <td colSpan={8} className="px-5 py-10 text-center text-sm text-stone-400">
+                  No books yet.{" "}
+                  <button className="text-amber-600 hover:underline" onClick={() => setShowAddBook(true)}>
+                    Add the first book.
+                  </button>
+                </td>
+              </tr>
+            )}
+            {programme.books.map((book) => (
+              <tr key={book.id} className="hover:bg-stone-50 transition-colors group">
+                <td className="px-4 py-3 text-xs text-stone-400 font-mono">{book.number}</td>
+                <td className="px-4 py-3">
+                  <div>
+                    <p className="font-medium text-stone-800 leading-tight group-hover:text-amber-700 transition-colors">
+                      {book.title}
+                    </p>
+                    {book.referenceAuthor && (
+                      <p className="text-[11px] text-stone-400 mt-0.5">{book.referenceAuthor}</p>
+                    )}
+                  </div>
+                </td>
+                <td className="px-4 py-3"><SizeBadge size={book.sizeCategory} /></td>
+                <td className="px-4 py-3"><TranslationBadge translation={book.translation} /></td>
+                <td className="px-4 py-3"><BookStatusBadge status={book.status} /></td>
+                <td className="px-4 py-3"><WorkflowTracker steps={book.workflowSteps} /></td>
+                <td className="px-4 py-3 text-xs text-stone-500">{currentStepLabel(book.workflowSteps)}</td>
+                <td className="px-4 py-3 text-right">
+                  <Link
+                    href={`/books/${book.id}`}
+                    className="text-xs text-amber-700 hover:text-amber-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    Open →
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="px-4 py-3 border-t border-stone-100 bg-stone-50 flex items-center gap-6 text-xs text-stone-400">
+          <span>{programme.books.length} books total</span>
+          <span className="text-green-600">{complete} complete</span>
+          <span className="text-blue-600">{inProgress} in progress</span>
+          <span>{notStarted} not started</span>
+        </div>
+      </div>
+
+      {showAddBook && (
+        <AddBookModal
+          programmeId={programme.id}
+          authorId={programme.author.id}
+          ministryId={ministryId}
+          nextBookNumber={nextNumber}
+          onClose={() => { setShowAddBook(false); router.refresh(); }}
+        />
+      )}
+    </div>
+  );
+}

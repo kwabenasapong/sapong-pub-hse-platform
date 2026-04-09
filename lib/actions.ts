@@ -1,0 +1,131 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { prisma } from "./prisma";
+import { Translation, SizeCategory, ProgrammeStatus } from "@prisma/client";
+
+// ── Add Ministry ──────────────────────────────────────────────────────────────
+
+export async function addMinistry(formData: FormData) {
+  const name = formData.get("name") as string;
+  const slug = (formData.get("slug") as string) || name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  const logoUrl = (formData.get("logoUrl") as string) || null;
+
+  if (!name?.trim()) throw new Error("Ministry name is required");
+
+  await prisma.ministry.create({
+    data: { name: name.trim(), slug, logoUrl },
+  });
+
+  revalidatePath("/ministries");
+  revalidatePath("/");
+}
+
+// ── Add Author ────────────────────────────────────────────────────────────────
+
+export async function addAuthor(formData: FormData) {
+  const ministryId = formData.get("ministryId") as string;
+  const name = formData.get("name") as string;
+  const credentials = (formData.get("credentials") as string) || null;
+  const bioText = (formData.get("bioText") as string) || null;
+  const toneRaw = formData.get("tone") as string;
+  const styleRaw = formData.get("style") as string;
+  const culturalBackground = formData.get("culturalBackground") as string;
+  const culturalMarkersRaw = formData.get("culturalMarkers") as string;
+
+  if (!ministryId || !name?.trim()) throw new Error("Ministry and author name are required");
+
+  const voiceProfile = {
+    tone: toneRaw ? toneRaw.split(",").map((t) => t.trim()).filter(Boolean) : [],
+    style: styleRaw || "",
+  };
+  const culturalContext = {
+    background: culturalBackground || "",
+    markers: culturalMarkersRaw ? culturalMarkersRaw.split(",").map((m) => m.trim()).filter(Boolean) : [],
+  };
+
+  await prisma.author.create({
+    data: { ministryId, name: name.trim(), credentials, bioText, voiceProfile, culturalContext },
+  });
+
+  revalidatePath(`/ministries/${ministryId}`);
+}
+
+// ── Add Programme ─────────────────────────────────────────────────────────────
+
+export async function addProgramme(formData: FormData) {
+  const ministryId = formData.get("ministryId") as string;
+  const authorId = formData.get("authorId") as string;
+  const title = formData.get("title") as string;
+  const defaultTranslation = formData.get("defaultTranslation") as Translation;
+  const defaultReferenceAuthor = (formData.get("defaultReferenceAuthor") as string) || null;
+
+  if (!ministryId || !authorId || !title?.trim()) throw new Error("Ministry, author, and title are required");
+
+  await prisma.publishingProgramme.create({
+    data: {
+      ministryId,
+      authorId,
+      title: title.trim(),
+      defaultTranslation,
+      defaultReferenceAuthor,
+      status: ProgrammeStatus.ACTIVE,
+    },
+  });
+
+  revalidatePath(`/ministries/${ministryId}`);
+  revalidatePath("/");
+}
+
+// ── Add Book ──────────────────────────────────────────────────────────────────
+
+export async function addBook(formData: FormData) {
+  const programmeId = formData.get("programmeId") as string;
+  const authorId = formData.get("authorId") as string;
+  const ministryId = formData.get("ministryId") as string;
+  const number = parseInt(formData.get("number") as string, 10);
+  const title = formData.get("title") as string;
+  const translation = formData.get("translation") as Translation;
+  const referenceAuthor = (formData.get("referenceAuthor") as string) || null;
+  const sizeCategory = formData.get("sizeCategory") as SizeCategory;
+
+  const wordCountMap: Record<SizeCategory, [number, number]> = {
+    FULL: [18000, 25000],
+    MEDIUM_FULL: [12000, 18000],
+    MEDIUM: [8000, 12000],
+    SHORT: [3000, 8000],
+  };
+  const [min, max] = wordCountMap[sizeCategory] ?? [8000, 18000];
+
+  if (!programmeId || !title?.trim() || isNaN(number)) throw new Error("Programme, number, and title are required");
+
+  const book = await prisma.book.create({
+    data: {
+      programmeId,
+      authorId,
+      number,
+      title: title.trim(),
+      translation,
+      referenceAuthor,
+      sizeCategory,
+      status: "NOT_STARTED",
+      targetWordCountMin: min,
+      targetWordCountMax: max,
+    },
+  });
+
+  // Auto-create the 5 workflow steps
+  await prisma.workflowStep.createMany({
+    data: [
+      { bookId: book.id, stepNumber: 1, stepName: "Intake",              status: "PENDING" },
+      { bookId: book.id, stepNumber: 2, stepName: "Analysis Report",     status: "PENDING" },
+      { bookId: book.id, stepNumber: 3, stepName: "Chapter Outline",     status: "PENDING" },
+      { bookId: book.id, stepNumber: 4, stepName: "Chapter Drafts",      status: "PENDING" },
+      { bookId: book.id, stepNumber: 5, stepName: "Front & Back Matter", status: "PENDING" },
+    ],
+  });
+
+  revalidatePath(`/ministries/${ministryId}/programmes/${programmeId}`);
+  revalidatePath("/");
+  return book.id;
+}
