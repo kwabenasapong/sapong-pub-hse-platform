@@ -129,3 +129,138 @@ export async function addBook(formData: FormData) {
   revalidatePath("/");
   return book.id;
 }
+
+// ── Update Ministry ───────────────────────────────────────────────────────────
+export async function updateMinistry(formData: FormData) {
+  const id      = formData.get("id") as string;
+  const name    = formData.get("name") as string;
+  const slug    = (formData.get("slug") as string) || name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  const logoUrl = (formData.get("logoUrl") as string) || null;
+
+  if (!id || !name?.trim()) throw new Error("ID and name required");
+
+  await prisma.ministry.update({ where: { id }, data: { name: name.trim(), slug, logoUrl } });
+  revalidatePath("/ministries");
+  revalidatePath(`/ministries/${id}`);
+  revalidatePath("/");
+}
+
+// ── Delete Ministry ───────────────────────────────────────────────────────────
+export async function deleteMinistry(id: string) {
+  // Guard: no programmes with books in progress
+  const programmes = await prisma.publishingProgramme.findMany({
+    where: { ministryId: id },
+    include: { books: { select: { status: true } } },
+  });
+  const hasActive = programmes.some((p) =>
+    p.books.some((b) => b.status === "IN_PROGRESS" || b.status === "COMPLETE")
+  );
+  if (hasActive) throw new Error("Cannot delete a ministry that has active or completed books.");
+
+  await prisma.ministry.delete({ where: { id } });
+  revalidatePath("/ministries");
+  revalidatePath("/");
+}
+
+// ── Update Author ─────────────────────────────────────────────────────────────
+export async function updateAuthor(formData: FormData) {
+  const id          = formData.get("id") as string;
+  const name        = formData.get("name") as string;
+  const credentials = (formData.get("credentials") as string) || null;
+  const bioText     = (formData.get("bioText") as string) || null;
+  const toneRaw     = formData.get("tone") as string;
+  const styleRaw    = formData.get("style") as string;
+  const culturalBackground = formData.get("culturalBackground") as string;
+  const culturalMarkersRaw = formData.get("culturalMarkers") as string;
+
+  if (!id || !name?.trim()) throw new Error("ID and name required");
+
+  const voiceProfile   = { tone: toneRaw ? toneRaw.split(",").map((t) => t.trim()).filter(Boolean) : [], style: styleRaw || "" };
+  const culturalContext = { background: culturalBackground || "", markers: culturalMarkersRaw ? culturalMarkersRaw.split(",").map((m) => m.trim()).filter(Boolean) : [] };
+
+  const author = await prisma.author.update({ where: { id }, data: { name: name.trim(), credentials, bioText, voiceProfile, culturalContext } });
+  revalidatePath(`/ministries/${author.ministryId}`);
+}
+
+// ── Delete Author ─────────────────────────────────────────────────────────────
+export async function deleteAuthor(id: string) {
+  const author = await prisma.author.findUnique({ where: { id }, include: { books: { select: { status: true } } } });
+  if (!author) throw new Error("Author not found");
+  const hasActive = author.books.some((b) => b.status === "IN_PROGRESS" || b.status === "COMPLETE");
+  if (hasActive) throw new Error("Cannot delete an author with active or completed books.");
+
+  await prisma.author.delete({ where: { id } });
+  revalidatePath(`/ministries/${author.ministryId}`);
+}
+
+// ── Update Programme ──────────────────────────────────────────────────────────
+export async function updateProgramme(formData: FormData) {
+  const id                    = formData.get("id") as string;
+  const title                 = formData.get("title") as string;
+  const defaultTranslation    = formData.get("defaultTranslation") as Translation;
+  const defaultReferenceAuthor = (formData.get("defaultReferenceAuthor") as string) || null;
+  const status                = formData.get("status") as ProgrammeStatus;
+
+  if (!id || !title?.trim()) throw new Error("ID and title required");
+
+  const prog = await prisma.publishingProgramme.update({
+    where: { id },
+    data: { title: title.trim(), defaultTranslation, defaultReferenceAuthor, status },
+  });
+  revalidatePath(`/ministries/${prog.ministryId}`);
+  revalidatePath(`/ministries/${prog.ministryId}/programmes/${id}`);
+  revalidatePath("/");
+}
+
+// ── Delete Programme ──────────────────────────────────────────────────────────
+export async function deleteProgramme(id: string) {
+  const prog = await prisma.publishingProgramme.findUnique({
+    where: { id },
+    include: { books: { select: { status: true } } },
+  });
+  if (!prog) throw new Error("Programme not found");
+  const hasActive = prog.books.some((b) => b.status === "IN_PROGRESS" || b.status === "COMPLETE");
+  if (hasActive) throw new Error("Cannot delete a programme with active or completed books.");
+
+  await prisma.publishingProgramme.delete({ where: { id } });
+  revalidatePath(`/ministries/${prog.ministryId}`);
+  revalidatePath("/");
+}
+
+// ── Update Book ───────────────────────────────────────────────────────────────
+export async function updateBook(formData: FormData) {
+  const id             = formData.get("id") as string;
+  const number         = parseInt(formData.get("number") as string, 10);
+  const title          = formData.get("title") as string;
+  const translation    = formData.get("translation") as Translation;
+  const referenceAuthor = (formData.get("referenceAuthor") as string) || null;
+  const sizeCategory   = formData.get("sizeCategory") as SizeCategory;
+
+  if (!id || !title?.trim() || isNaN(number)) throw new Error("ID, number, and title required");
+
+  const wordCountMap: Record<SizeCategory, [number, number]> = {
+    FULL: [18000, 25000], MEDIUM_FULL: [12000, 18000], MEDIUM: [8000, 12000], SHORT: [3000, 8000],
+  };
+  const [min, max] = wordCountMap[sizeCategory] ?? [8000, 18000];
+
+  const book = await prisma.book.update({
+    where: { id },
+    data: { number, title: title.trim(), translation, referenceAuthor, sizeCategory, targetWordCountMin: min, targetWordCountMax: max },
+  });
+  revalidatePath(`/ministries/${(await prisma.publishingProgramme.findUnique({ where: { id: book.programmeId }, include: { ministry: true } }))?.ministryId}/programmes/${book.programmeId}`);
+  revalidatePath(`/books/${id}`);
+}
+
+// ── Delete Book ───────────────────────────────────────────────────────────────
+export async function deleteBook(id: string) {
+  const book = await prisma.book.findUnique({
+    where: { id },
+    include: { programme: { include: { ministry: true } } },
+  });
+  if (!book) throw new Error("Book not found");
+  if (book.status === "IN_PROGRESS") throw new Error("Cannot delete a book that is in progress. Complete or reset it first.");
+
+  await prisma.book.delete({ where: { id } });
+  revalidatePath(`/ministries/${book.programme.ministryId}/programmes/${book.programmeId}`);
+  revalidatePath("/");
+}

@@ -1,30 +1,39 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { PageHeader, Button } from "@/components/ui";
 import AddMinistryModal from "@/components/AddMinistryModal";
+import EditMinistryModal from "@/components/EditMinistryModal";
+import ConfirmDeleteDialog from "@/components/ConfirmDeleteDialog";
+import { deleteMinistry } from "@/lib/actions";
 
 type MinistryRow = {
-  id: string;
-  name: string;
-  slug: string;
-  authorCount: number;
-  programmeCount: number;
-  bookCount: number;
-  completeCount: number;
+  id: string; name: string; slug: string; logoUrl?: string | null;
+  authorCount: number; programmeCount: number; bookCount: number; completeCount: number;
 };
 
 export default function MinistriesPage() {
   const [ministries, setMinistries] = useState<MinistryRow[]>([]);
-  const [showModal, setShowModal] = useState(false);
+  const [showAdd, setShowAdd]     = useState(false);
+  const [editing, setEditing]     = useState<MinistryRow | null>(null);
+  const [deleting, setDeleting]   = useState<MinistryRow | null>(null);
+  const [error, setError]         = useState<string | null>(null);
+  const [, startTransition]       = useTransition();
 
   async function load() {
     const res = await fetch("/api/ministries");
-    const data = await res.json();
-    setMinistries(data);
+    setMinistries(await res.json());
   }
 
   useEffect(() => { load(); }, []);
+
+  function handleDelete(m: MinistryRow) {
+    setError(null);
+    startTransition(async () => {
+      try { await deleteMinistry(m.id); setDeleting(null); load(); }
+      catch (err) { setDeleting(null); setError(err instanceof Error ? err.message : "Delete failed"); }
+    });
+  }
 
   return (
     <div className="p-8 max-w-5xl">
@@ -32,7 +41,7 @@ export default function MinistriesPage() {
         title="Ministries"
         subtitle="All ministry clients on the platform"
         action={
-          <Button variant="primary" size="sm" onClick={() => setShowModal(true)}>
+          <Button variant="primary" size="sm" onClick={() => setShowAdd(true)}>
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
@@ -40,6 +49,13 @@ export default function MinistriesPage() {
           </Button>
         }
       />
+
+      {error && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {error}
+          <button onClick={() => setError(null)} className="ml-2 text-red-400 hover:text-red-600">✕</button>
+        </div>
+      )}
 
       <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
         <table className="w-full text-sm">
@@ -55,16 +71,12 @@ export default function MinistriesPage() {
           </thead>
           <tbody className="divide-y divide-stone-100">
             {ministries.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-sm text-stone-400">
-                  No ministries yet. Add your first one.
-                </td>
-              </tr>
+              <tr><td colSpan={6} className="px-5 py-10 text-center text-sm text-stone-400">No ministries yet.</td></tr>
             )}
             {ministries.map((m) => {
               const pct = m.bookCount > 0 ? Math.round((m.completeCount / m.bookCount) * 100) : 0;
               return (
-                <tr key={m.id} className="hover:bg-stone-50 transition-colors">
+                <tr key={m.id} className="hover:bg-stone-50 transition-colors group">
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-amber-100 rounded flex items-center justify-center text-amber-700 font-semibold text-sm flex-shrink-0">
@@ -81,13 +93,18 @@ export default function MinistriesPage() {
                       <div className="w-full bg-stone-100 rounded-full h-1.5 max-w-[80px]">
                         <div className="bg-green-400 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
                       </div>
-                      <p className="text-[10px] text-stone-400">{m.completeCount}/{m.bookCount} complete</p>
+                      <p className="text-[10px] text-stone-400">{m.completeCount}/{m.bookCount} done</p>
                     </div>
                   </td>
-                  <td className="px-5 py-4 text-right">
-                    <Link href={`/ministries/${m.id}`} className="text-xs text-amber-700 hover:text-amber-600 font-medium">
-                      View →
-                    </Link>
+                  <td className="px-5 py-4">
+                    <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => setEditing(m)}
+                        className="text-xs text-stone-500 hover:text-stone-800 transition-colors">Edit</button>
+                      <button onClick={() => setDeleting(m)}
+                        className="text-xs text-red-400 hover:text-red-600 transition-colors">Delete</button>
+                      <Link href={`/ministries/${m.id}`}
+                        className="text-xs text-amber-700 hover:text-amber-600 font-medium">View →</Link>
+                    </div>
                   </td>
                 </tr>
               );
@@ -96,8 +113,15 @@ export default function MinistriesPage() {
         </table>
       </div>
 
-      {showModal && (
-        <AddMinistryModal onClose={() => { setShowModal(false); load(); }} />
+      {showAdd  && <AddMinistryModal  onClose={() => { setShowAdd(false);  load(); }} />}
+      {editing  && <EditMinistryModal ministry={editing} onClose={() => { setEditing(null); load(); }} />}
+      {deleting && (
+        <ConfirmDeleteDialog
+          title={`Delete "${deleting.name}"?`}
+          message="This will permanently delete the ministry and all its data. This cannot be undone."
+          onConfirm={() => handleDelete(deleting)}
+          onCancel={() => setDeleting(null)}
+        />
       )}
     </div>
   );

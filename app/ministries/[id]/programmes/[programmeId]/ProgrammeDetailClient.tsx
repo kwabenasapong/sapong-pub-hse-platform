@@ -1,28 +1,24 @@
 "use client";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageHeader, Button, BookStatusBadge, TranslationBadge, SizeBadge, WorkflowTracker } from "@/components/ui";
 import AddBookModal from "@/components/AddBookModal";
+import EditBookModal from "@/components/EditBookModal";
+import ConfirmDeleteDialog from "@/components/ConfirmDeleteDialog";
+import { deleteBook } from "@/lib/actions";
 import { Translation, SizeCategory, BookStatus, WorkflowStatus } from "@prisma/client";
 
 type WorkflowStep = { stepNumber: number; status: WorkflowStatus };
 type Book = {
-  id: string;
-  number: number;
-  title: string;
-  translation: Translation;
-  referenceAuthor: string | null;
-  sizeCategory: SizeCategory;
-  status: BookStatus;
+  id: string; number: number; title: string;
+  translation: Translation; referenceAuthor: string | null;
+  sizeCategory: SizeCategory; status: BookStatus;
   workflowSteps: WorkflowStep[];
 };
 type Programme = {
-  id: string;
-  title: string;
-  defaultTranslation: Translation;
-  defaultReferenceAuthor: string | null;
-  status: string;
+  id: string; title: string; defaultTranslation: Translation;
+  defaultReferenceAuthor: string | null; status: string;
   ministry: { id: string; name: string };
   author: { id: string; name: string };
   books: Book[];
@@ -46,15 +42,30 @@ export default function ProgrammeDetailClient({
   programme: Programme;
   ministryId: string;
 }) {
-  const [showAddBook, setShowAddBook] = useState(false);
   const router = useRouter();
-  const nextNumber = programme.books.length > 0
-    ? Math.max(...programme.books.map((b) => b.number)) + 1
-    : 1;
+  const [, startTransition] = useTransition();
 
-  const complete = programme.books.filter((b) => b.status === "COMPLETE").length;
-  const inProgress = programme.books.filter((b) => b.status === "IN_PROGRESS").length;
-  const notStarted = programme.books.filter((b) => b.status === "NOT_STARTED").length;
+  const [showAddBook,  setShowAddBook]  = useState(false);
+  const [editingBook,  setEditingBook]  = useState<Book | null>(null);
+  const [deletingBook, setDeletingBook] = useState<Book | null>(null);
+  const [error,        setError]        = useState<string | null>(null);
+
+  function refresh() { router.refresh(); }
+
+  const nextNumber = programme.books.length > 0
+    ? Math.max(...programme.books.map((b) => b.number)) + 1 : 1;
+
+  const complete    = programme.books.filter((b) => b.status === "COMPLETE").length;
+  const inProgress  = programme.books.filter((b) => b.status === "IN_PROGRESS").length;
+  const notStarted  = programme.books.filter((b) => b.status === "NOT_STARTED").length;
+
+  function handleDeleteBook(b: Book) {
+    setError(null);
+    startTransition(async () => {
+      try { await deleteBook(b.id); setDeletingBook(null); refresh(); }
+      catch (err) { setDeletingBook(null); setError(err instanceof Error ? err.message : "Delete failed"); }
+    });
+  }
 
   return (
     <div className="p-8 max-w-6xl">
@@ -65,6 +76,13 @@ export default function ProgrammeDetailClient({
         <span className="mx-1.5">›</span>
         {programme.title}
       </p>
+
+      {error && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {error}
+          <button onClick={() => setError(null)} className="ml-2 text-red-400 hover:text-red-600">✕</button>
+        </div>
+      )}
 
       <PageHeader
         title={programme.title}
@@ -108,27 +126,33 @@ export default function ProgrammeDetailClient({
               <tr key={book.id} className="hover:bg-stone-50 transition-colors group">
                 <td className="px-4 py-3 text-xs text-stone-400 font-mono">{book.number}</td>
                 <td className="px-4 py-3">
-                  <div>
-                    <p className="font-medium text-stone-800 leading-tight group-hover:text-amber-700 transition-colors">
-                      {book.title}
-                    </p>
-                    {book.referenceAuthor && (
-                      <p className="text-[11px] text-stone-400 mt-0.5">{book.referenceAuthor}</p>
-                    )}
-                  </div>
+                  <p className="font-medium text-stone-800 leading-tight group-hover:text-amber-700 transition-colors">
+                    {book.title}
+                  </p>
+                  {book.referenceAuthor && (
+                    <p className="text-[11px] text-stone-400 mt-0.5">{book.referenceAuthor}</p>
+                  )}
                 </td>
                 <td className="px-4 py-3"><SizeBadge size={book.sizeCategory} /></td>
                 <td className="px-4 py-3"><TranslationBadge translation={book.translation} /></td>
                 <td className="px-4 py-3"><BookStatusBadge status={book.status} /></td>
                 <td className="px-4 py-3"><WorkflowTracker steps={book.workflowSteps} /></td>
                 <td className="px-4 py-3 text-xs text-stone-500">{currentStepLabel(book.workflowSteps)}</td>
-                <td className="px-4 py-3 text-right">
-                  <Link
-                    href={`/books/${book.id}`}
-                    className="text-xs text-amber-700 hover:text-amber-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    Open →
-                  </Link>
+                <td className="px-4 py-3">
+                  <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Link href={`/books/${book.id}`}
+                      className="text-xs text-amber-700 hover:text-amber-600 font-medium">Open</Link>
+                    <span className="text-stone-200">·</span>
+                    <button onClick={() => setEditingBook(book)}
+                      className="text-xs text-stone-500 hover:text-stone-800 transition-colors">Edit</button>
+                    <span className="text-stone-200">·</span>
+                    <button
+                      onClick={() => setDeletingBook(book)}
+                      disabled={book.status === "IN_PROGRESS"}
+                      className="text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      title={book.status === "IN_PROGRESS" ? "Cannot delete a book in progress" : ""}
+                    >Delete</button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -149,7 +173,26 @@ export default function ProgrammeDetailClient({
           authorId={programme.author.id}
           ministryId={ministryId}
           nextBookNumber={nextNumber}
-          onClose={() => { setShowAddBook(false); router.refresh(); }}
+          onClose={() => { setShowAddBook(false); refresh(); }}
+        />
+      )}
+      {editingBook && (
+        <EditBookModal
+          book={editingBook}
+          onClose={() => { setEditingBook(null); refresh(); }}
+        />
+      )}
+      {deletingBook && (
+        <ConfirmDeleteDialog
+          title={`Delete "${deletingBook.title}"?`}
+          message={
+            deletingBook.status === "COMPLETE"
+              ? "This book is marked complete. Deleting it will permanently remove all chapters, transcripts, and workflow history."
+              : "This will permanently delete the book and all its data."
+          }
+          confirmLabel="Delete Book"
+          onConfirm={() => handleDeleteBook(deletingBook)}
+          onCancel={() => setDeletingBook(null)}
         />
       )}
     </div>
