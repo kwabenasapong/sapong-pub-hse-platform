@@ -173,10 +173,17 @@ Write in ${book.author.name}'s voice throughout — bold, pastoral, direct.`;
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const { bookId, stepNumber, chapterNumber, feedback } = await req.json();
+  let bookId: string, stepNumber: number, chapterNumber: string | undefined, feedback: string | undefined;
+  try {
+    ({ bookId, stepNumber, chapterNumber, feedback } = await req.json());
+  } catch {
+    return new Response("Invalid request body", { status: 400 });
+  }
 
   // Load book with all needed relations
-  const book = await prisma.book.findUnique({
+  let book;
+  try {
+    book = await prisma.book.findUnique({
     where: { id: bookId },
     include: {
       author: true,
@@ -187,6 +194,9 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  } catch (err) {
+    return new Response(err instanceof Error ? err.message : "Database error", { status: 500 });
+  }
   if (!book) return new Response("Book not found", { status: 404 });
 
   const transcriptTexts = book.transcripts.map((t) => t.rawText);
