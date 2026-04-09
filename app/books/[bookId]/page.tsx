@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getBookById } from "@/lib/queries";
 import { BookStatusBadge, TranslationBadge, SizeBadge } from "@/components/ui";
 import BookWorkflow from "./BookWorkflow";
+import ExportButton from "./ExportButton";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +13,13 @@ export default async function BookDetailPage({ params }: { params: { bookId: str
 
   const ministryId = book.programme.ministry.id;
   const programmeId = book.programme.id;
+  const approvedChapters = book.chapters.filter((c) => c.status === "APPROVED").length;
+  const step5 = book.workflowSteps.find((s) => s.stepNumber === 5);
+  const canExport = approvedChapters > 0; // export available once at least one chapter is approved
 
   return (
     <div className="p-8 max-w-4xl">
+      {/* Breadcrumb */}
       <p className="text-xs text-stone-400 mb-4">
         <Link href="/ministries" className="hover:text-stone-600">Ministries</Link>
         <span className="mx-1.5">›</span>
@@ -29,16 +34,33 @@ export default async function BookDetailPage({ params }: { params: { bookId: str
         Book {book.number}
       </p>
 
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-xs font-mono text-stone-400">Book {book.number}</span>
-          <BookStatusBadge status={book.status} />
-          <TranslationBadge translation={book.translation} />
-          <SizeBadge size={book.sizeCategory} />
+      {/* Header */}
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs font-mono text-stone-400">Book {book.number}</span>
+            <BookStatusBadge status={book.status} />
+            <TranslationBadge translation={book.translation} />
+            <SizeBadge size={book.sizeCategory} />
+          </div>
+          <h1 className="text-2xl font-semibold text-stone-800 leading-tight">{book.title}</h1>
+          {book.referenceAuthor && (
+            <p className="text-sm text-stone-500 mt-1">Reference style: {book.referenceAuthor}</p>
+          )}
+          <div className="flex items-center gap-3 mt-2 text-xs text-stone-400">
+            <span>{approvedChapters} chapter{approvedChapters !== 1 ? "s" : ""} approved</span>
+            {book.targetWordCountMin && (
+              <span>Target: {book.targetWordCountMin.toLocaleString()}–{book.targetWordCountMax?.toLocaleString()} words</span>
+            )}
+          </div>
         </div>
-        <h1 className="text-2xl font-semibold text-stone-800 leading-tight">{book.title}</h1>
-        {book.referenceAuthor && (
-          <p className="text-sm text-stone-500 mt-1">Reference style: {book.referenceAuthor}</p>
+        {/* Export button */}
+        {canExport && (
+          <ExportButton
+            bookId={book.id}
+            isComplete={book.status === "COMPLETE"}
+            hasAllMatter={step5?.status === "APPROVED"}
+          />
         )}
       </div>
 
