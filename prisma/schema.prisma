@@ -1,0 +1,173 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Translation {
+  KJV
+  PASSION
+  NLT
+}
+
+enum ProgrammeStatus {
+  ACTIVE
+  COMPLETE
+  PAUSED
+}
+
+enum SizeCategory {
+  FULL
+  MEDIUM_FULL
+  MEDIUM
+  SHORT
+}
+
+enum BookStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETE
+}
+
+enum WorkflowStatus {
+  PENDING
+  IN_PROGRESS
+  APPROVED
+}
+
+enum ChapterStatus {
+  DRAFT
+  APPROVED
+}
+
+enum DocumentType {
+  CHAPTER
+  FULL_BOOK
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model Ministry {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  logoUrl   String?
+  createdAt DateTime @default(now())
+
+  authors    Author[]
+  programmes PublishingProgramme[]
+}
+
+model Author {
+  id              String   @id @default(cuid())
+  ministryId      String
+  name            String
+  credentials     String?
+  voiceProfile    Json?
+  culturalContext Json?
+  bioText         String?  @db.Text
+  createdAt       DateTime @default(now())
+
+  ministry   Ministry              @relation(fields: [ministryId], references: [id])
+  programmes PublishingProgramme[]
+  books      Book[]
+}
+
+model PublishingProgramme {
+  id                     String          @id @default(cuid())
+  ministryId             String
+  authorId               String
+  title                  String
+  defaultTranslation     Translation
+  defaultReferenceAuthor String?
+  status                 ProgrammeStatus @default(ACTIVE)
+  createdAt              DateTime        @default(now())
+
+  ministry Ministry @relation(fields: [ministryId], references: [id])
+  author   Author   @relation(fields: [authorId], references: [id])
+  books    Book[]
+}
+
+model Book {
+  id                 String       @id @default(cuid())
+  programmeId        String
+  authorId           String
+  number             Int
+  title              String
+  translation        Translation
+  referenceAuthor    String?
+  sizeCategory       SizeCategory
+  status             BookStatus   @default(NOT_STARTED)
+  targetWordCountMin Int?
+  targetWordCountMax Int?
+  createdAt          DateTime     @default(now())
+
+  programme     PublishingProgramme @relation(fields: [programmeId], references: [id])
+  author        Author              @relation(fields: [authorId], references: [id])
+  transcripts   Transcript[]
+  workflowSteps WorkflowStep[]
+  chapters      Chapter[]
+  documents     Document[]
+
+  @@unique([programmeId, number])
+}
+
+model Transcript {
+  id         String   @id @default(cuid())
+  bookId     String
+  filename   String
+  rawText    String   @db.Text
+  orderIndex Int
+  uploadedAt DateTime @default(now())
+
+  book Book @relation(fields: [bookId], references: [id])
+}
+
+model WorkflowStep {
+  id          String         @id @default(cuid())
+  bookId      String
+  stepNumber  Int
+  stepName    String
+  status      WorkflowStatus @default(PENDING)
+  outputText  String?        @db.Text
+  feedback    String?        @db.Text
+  completedAt DateTime?
+
+  book Book @relation(fields: [bookId], references: [id])
+
+  @@unique([bookId, stepNumber])
+}
+
+model Chapter {
+  id            String        @id @default(cuid())
+  bookId        String
+  chapterNumber Int
+  title         String?
+  status        ChapterStatus @default(DRAFT)
+  wordCount     Int?
+  draftText     String?       @db.Text
+  approvedText  String?       @db.Text
+  createdAt     DateTime      @default(now())
+
+  book      Book       @relation(fields: [bookId], references: [id])
+  documents Document[]
+
+  @@unique([bookId, chapterNumber])
+}
+
+model Document {
+  id          String       @id @default(cuid())
+  bookId      String
+  chapterId   String?
+  type        DocumentType
+  filePath    String
+  generatedAt DateTime     @default(now())
+
+  book    Book     @relation(fields: [bookId], references: [id])
+  chapter Chapter? @relation(fields: [chapterId], references: [id])
+}
+
+datasource db {
+  provider = "postgresql"
+}
