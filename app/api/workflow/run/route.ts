@@ -9,7 +9,7 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 function buildIntakePrompt(transcripts: string[], book: {
   title: string; translation: string; referenceAuthor: string | null;
   sizeCategory: string; author: { name: string; voiceProfile: unknown; culturalContext: unknown };
-}) {
+}, contextBlock = "") {
   const voice = book.author.voiceProfile as { tone?: string[]; style?: string } | null;
   const culture = book.author.culturalContext as { background?: string; markers?: string[] } | null;
   return `You are a senior publishing editor converting sermon transcripts into a book chapter by chapter.
@@ -33,13 +33,13 @@ Produce a detailed Analysis Report with these sections:
 5. CHAPTER MAPPING — Which transcript maps to which chapter and why
 6. STYLE & TRANSLATION CONFIRMATION — Confirm reference author fit and translation appropriateness
 
-Be specific. Reference actual content from the transcripts.`;
+${contextBlock ? `\n${contextBlock}\n` : ""}Be specific. Reference actual content from the transcripts.`;
 }
 
 function buildOutlinePrompt(transcripts: string[], analysisOutput: string, book: {
   title: string; translation: string; referenceAuthor: string | null; sizeCategory: string;
   author: { name: string; voiceProfile: unknown };
-}) {
+}, contextBlock = "") {
   const voice = book.author.voiceProfile as { tone?: string[]; style?: string } | null;
   const chapterCount = book.sizeCategory === "FULL" ? "9–10" :
     book.sizeCategory === "MEDIUM_FULL" ? "7–8" :
@@ -62,7 +62,8 @@ Produce a full chapter-by-chapter outline (${chapterCount} chapters) following t
 - Chapters 9+: Application — what the reader must do
 - Final Chapter: Charge and commissioning — sends the reader out
 
-For EACH chapter provide:
+${contextBlock ? `\n${contextBlock}\n` : ""}
+${contextBlock ? `\n${contextBlock}\n` : ""}For EACH chapter provide:
 CHAPTER [N]: [TITLE — bold, declarative, never a question]
 SOURCE TRANSCRIPT: [which transcript]
 CENTRAL THESIS: [one sentence]
@@ -80,7 +81,8 @@ function buildChapterPrompt(
     title: string; translation: string; referenceAuthor: string | null; sizeCategory: string;
     author: { name: string; voiceProfile: unknown; culturalContext: unknown };
   },
-  previousFeedback?: string
+  previousFeedback?: string,
+  contextBlock = ""
 ) {
   const voice = book.author.voiceProfile as { tone?: string[]; style?: string } | null;
   const culture = book.author.culturalContext as { background?: string; markers?: string[] } | null;
@@ -102,6 +104,7 @@ ${outlineSection}
 SOURCE TRANSCRIPT:
 ${transcriptText}
 ${previousFeedback ? `\nPREVIOUS FEEDBACK TO ADDRESS:\n${previousFeedback}` : ""}
+${contextBlock ? `\nADDITIONAL CONTEXT / EDITOR NOTES:\n${contextBlock}` : ""}
 
 Write the full chapter following this exact structure:
 1. CHAPTER TITLE — bold, declarative, never a question
@@ -127,7 +130,8 @@ function buildFrontBackMatterPrompt(
     title: string; translation: string;
     author: { name: string; credentials: string | null; bioText: string | null; voiceProfile: unknown; culturalContext: unknown };
     programme: { ministry: { name: string } };
-  }
+  },
+  contextBlock = ""
 ) {
   return `You are completing the front and back matter for "${book.title}" by ${book.author.name}.
 
@@ -167,7 +171,7 @@ Email: info@gracewayfountain.org
 Phone: (+233) 0241654472
 Social: Facebook · Instagram · YouTube · TikTok handles as provided.
 
-Write in ${book.author.name}'s voice throughout — bold, pastoral, direct.`;
+${contextBlock ? `\n${contextBlock}\n` : ""}Write in ${book.author.name}'s voice throughout — bold, pastoral, direct.`;
 }
 
 // ── Route handler ─────────────────────────────────────────────────────────────
@@ -203,6 +207,15 @@ export async function POST(req: NextRequest) {
   const step2Output = book.workflowSteps.find((s) => s.stepNumber === 2)?.outputText ?? "";
   const step3Output = book.workflowSteps.find((s) => s.stepNumber === 3)?.outputText ?? "";
 
+  // Gather notes and prior feedback for the current step
+  const currentStep = book.workflowSteps.find((s) => s.stepNumber === stepNumber);
+  const stepNotes = currentStep?.notes ?? "";
+  const priorFeedback = feedback ?? currentStep?.feedback ?? "";
+  const contextBlock = [
+    stepNotes ? `ADDITIONAL CONTEXT / NOTES FROM EDITOR:\n${stepNotes}` : "",
+    priorFeedback ? `FEEDBACK FROM PREVIOUS VERSION:\n${priorFeedback}` : "",
+  ].filter(Boolean).join("\n\n");
+
   let prompt = "";
 
   if (stepNumber === 2) {
@@ -212,7 +225,7 @@ export async function POST(req: NextRequest) {
       referenceAuthor: book.referenceAuthor,
       sizeCategory: book.sizeCategory,
       author: book.author,
-    });
+    }, contextBlock);
   } else if (stepNumber === 3) {
     prompt = buildOutlinePrompt(transcriptTexts, step2Output, {
       title: book.title,
@@ -220,7 +233,7 @@ export async function POST(req: NextRequest) {
       referenceAuthor: book.referenceAuthor,
       sizeCategory: book.sizeCategory,
       author: book.author,
-    });
+    }, contextBlock);
   } else if (stepNumber === 4 && chapterNumber) {
     const chNum = parseInt(chapterNumber, 10);
     const transcript = book.transcripts[chNum - 1]?.rawText ?? book.transcripts[0]?.rawText ?? "";
@@ -236,14 +249,13 @@ export async function POST(req: NextRequest) {
       .slice(chapterStart, chapterEnd > chapterStart ? chapterEnd : undefined)
       .join("\n");
 
-    const existingChapter = book.chapters.find((c) => c.chapterNumber === chNum);
     prompt = buildChapterPrompt(chNum, outlineSection, transcript, {
       title: book.title,
       translation: book.translation,
       referenceAuthor: book.referenceAuthor,
       sizeCategory: book.sizeCategory,
       author: book.author,
-    }, feedback ?? (existingChapter?.approvedText ? undefined : (existingChapter?.draftText ?? undefined)));
+    }, priorFeedback || undefined, contextBlock);
   } else if (stepNumber === 5) {
     const chapterSummary = book.chapters
       .map((c) => `Chapter ${c.chapterNumber}: ${c.title ?? ""}\n${(c.approvedText ?? c.draftText ?? "").slice(0, 300)}…`)
@@ -257,7 +269,7 @@ export async function POST(req: NextRequest) {
         bioText: book.author.bioText,
       },
       programme: book.programme,
-    });
+    }, contextBlock);
   } else {
     return new Response("Invalid step", { status: 400 });
   }

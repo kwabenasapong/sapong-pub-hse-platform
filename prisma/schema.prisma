@@ -132,6 +132,7 @@ model WorkflowStep {
   status      WorkflowStatus @default(PENDING)
   outputText  String?        @db.Text
   feedback    String?        @db.Text
+  notes       String?        @db.Text
   completedAt DateTime?
 
   book Book @relation(fields: [bookId], references: [id])
