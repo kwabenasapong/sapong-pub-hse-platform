@@ -293,6 +293,8 @@ export default function BookWorkflow({ book }: { book: Book }) {
     [{ filename: "Transcript 1", rawText: "" }]
   );
   const [savingTranscripts, setSavingTranscripts] = useState(false);
+  const [extractingIdx, setExtractingIdx] = useState<number | null>(null);
+  const [extractError, setExtractError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const streamKey = (step: number, ch?: number) => ch ? `step${step}_ch${ch}` : `step${step}`;
@@ -367,6 +369,25 @@ export default function BookWorkflow({ book }: { book: Book }) {
     setExpanded(stepNumber);
   }, [book.id, callApprove]);
 
+  const handleFileUpload = useCallback(async (idx: number, file: File) => {
+    setExtractingIdx(idx);
+    setExtractError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/extract", { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setTranscriptInputs((prev) => prev.map((x, j) =>
+        j === idx ? { ...x, filename: file.name, rawText: data.text } : x
+      ));
+    } catch (err) {
+      setExtractError(err instanceof Error ? err.message : "Extraction failed");
+    } finally {
+      setExtractingIdx(null);
+    }
+  }, []);
+
   const saveTranscripts = useCallback(async () => {
     setSavingTranscripts(true);
     const valid = transcriptInputs.filter((t) => t.rawText.trim());
@@ -427,36 +448,111 @@ export default function BookWorkflow({ book }: { book: Book }) {
                 </div>
               ) : (
                 <div>
-                  <p className="text-sm text-stone-500 mb-4">Paste each sermon transcript below.</p>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm text-stone-500">
+                      Add each sermon transcript — paste text or upload a file (.txt, .docx, .pdf).
+                    </p>
+                    <span className="text-xs text-stone-400">Max 10MB per file</span>
+                  </div>
+
+                  {extractError && (
+                    <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded text-xs text-red-700 flex items-center justify-between">
+                      {extractError}
+                      <button onClick={() => setExtractError(null)} className="ml-2 text-red-400 hover:text-red-600">✕</button>
+                    </div>
+                  )}
+
                   <div className="space-y-3">
                     {transcriptInputs.map((t, i) => (
                       <div key={i} className="border border-stone-200 rounded-lg overflow-hidden">
+                        {/* Transcript header */}
                         <div className="flex items-center justify-between bg-stone-50 px-3 py-2 border-b border-stone-200">
                           <input
                             value={t.filename}
                             onChange={(e) => setTranscriptInputs((prev) => prev.map((x, j) => j === i ? { ...x, filename: e.target.value } : x))}
-                            className="text-xs font-medium text-stone-600 bg-transparent focus:outline-none w-48"
+                            className="text-xs font-medium text-stone-600 bg-transparent focus:outline-none flex-1 min-w-0 mr-3"
                           />
-                          {transcriptInputs.length > 1 && (
-                            <button onClick={() => setTranscriptInputs((prev) => prev.filter((_, j) => j !== i))}
-                              className="text-xs text-stone-400 hover:text-red-500 transition-colors">Remove</button>
-                          )}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {/* File upload button */}
+                            <label className={`cursor-pointer text-xs px-2 py-1 rounded border transition-colors ${
+                              extractingIdx === i
+                                ? "bg-stone-100 text-stone-400 border-stone-200 cursor-wait"
+                                : "bg-white text-stone-500 border-stone-200 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300"
+                            }`}>
+                              {extractingIdx === i ? (
+                                <span className="flex items-center gap-1">
+                                  <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                  </svg>
+                                  Extracting…
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1">
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                                  </svg>
+                                  Upload file
+                                </span>
+                              )}
+                              <input
+                                type="file"
+                                accept=".txt,.docx,.pdf"
+                                className="hidden"
+                                disabled={extractingIdx !== null}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleFileUpload(i, file);
+                                  e.target.value = "";
+                                }}
+                              />
+                            </label>
+                            {transcriptInputs.length > 1 && (
+                              <button
+                                onClick={() => setTranscriptInputs((prev) => prev.filter((_, j) => j !== i))}
+                                className="text-xs text-stone-400 hover:text-red-500 transition-colors"
+                              >Remove</button>
+                            )}
+                          </div>
                         </div>
-                        <textarea
-                          value={t.rawText}
-                          onChange={(e) => setTranscriptInputs((prev) => prev.map((x, j) => j === i ? { ...x, rawText: e.target.value } : x))}
-                          placeholder="Paste transcript text here…"
-                          rows={6}
-                          className="w-full px-3 py-2 text-sm text-stone-700 placeholder:text-stone-300 focus:outline-none resize-y"
-                        />
+
+                        {/* Text area — shows extracted content or paste */}
+                        {t.rawText ? (
+                          <div className="relative">
+                            <textarea
+                              value={t.rawText}
+                              onChange={(e) => setTranscriptInputs((prev) => prev.map((x, j) => j === i ? { ...x, rawText: e.target.value } : x))}
+                              rows={6}
+                              className="w-full px-3 py-2 text-sm text-stone-700 focus:outline-none resize-y"
+                            />
+                            <div className="absolute bottom-2 right-2 text-[10px] text-stone-300 pointer-events-none">
+                              {t.rawText.split(/\s+/).filter(Boolean).length.toLocaleString()} words
+                            </div>
+                          </div>
+                        ) : (
+                          <textarea
+                            value={t.rawText}
+                            onChange={(e) => setTranscriptInputs((prev) => prev.map((x, j) => j === i ? { ...x, rawText: e.target.value } : x))}
+                            placeholder="Paste transcript text here, or upload a file above…"
+                            rows={6}
+                            className="w-full px-3 py-2 text-sm text-stone-700 placeholder:text-stone-300 focus:outline-none resize-y"
+                          />
+                        )}
                       </div>
                     ))}
                   </div>
+
                   <div className="flex items-center gap-3 mt-3">
                     <button
-                      onClick={() => setTranscriptInputs((prev) => [...prev, { filename: `Transcript ${prev.length + 1}`, rawText: "" }])}
+                      onClick={() => setTranscriptInputs((prev) => [
+                        ...prev,
+                        { filename: `Transcript ${prev.length + 1}`, rawText: "" }
+                      ])}
                       className="text-xs text-amber-700 hover:text-amber-600 font-medium"
-                    >+ Add Transcript</button>
+                    >
+                      + Add Transcript
+                    </button>
                     <button
                       onClick={saveTranscripts}
                       disabled={savingTranscripts || !transcriptInputs.some((t) => t.rawText.trim())}
