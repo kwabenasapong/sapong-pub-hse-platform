@@ -40,7 +40,7 @@ Base everything strictly on what is present in the sermon sample. Do not invent 
       async start(controller) {
         try {
           const claudeStream = await anthropic.messages.stream({
-            model: "claude-sonnet-4-20250514",
+            model: "claude-sonnet-4-6",
             max_tokens: 1024,
             messages: [{ role: "user", content: prompt }],
           });

@@ -158,9 +158,11 @@ export default function SetupWizardPage() {
         setDeduceStream(full);
       }
 
-      // Parse the JSON response
-      const cleaned = full.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
-      const parsed = JSON.parse(cleaned) as VoiceProfile;
+      // Parse the JSON response — extract between first { and last } to handle markdown fences
+      const start = full.indexOf("{");
+      const end = full.lastIndexOf("}");
+      if (start === -1 || end === -1) throw new Error("No JSON found in response");
+      const parsed = JSON.parse(full.slice(start, end + 1)) as VoiceProfile;
       setVoice(parsed);
       setVoiceEdit({ ...parsed });
 

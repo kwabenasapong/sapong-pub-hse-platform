@@ -145,18 +145,32 @@ export async function updateMinistry(formData: FormData) {
   revalidatePath("/");
 }
 
+// ── Cascade helpers ───────────────────────────────────────────────────────────
+async function cascadeDeleteBooks(bookIds: string[]) {
+  if (bookIds.length === 0) return;
+  await prisma.document.deleteMany({ where: { bookId: { in: bookIds } } });
+  await prisma.workflowStep.deleteMany({ where: { bookId: { in: bookIds } } });
+  await prisma.transcript.deleteMany({ where: { bookId: { in: bookIds } } });
+  await prisma.chapter.deleteMany({ where: { bookId: { in: bookIds } } });
+  await prisma.book.deleteMany({ where: { id: { in: bookIds } } });
+}
+
 // ── Delete Ministry ───────────────────────────────────────────────────────────
 export async function deleteMinistry(id: string) {
-  // Guard: no programmes with books in progress
   const programmes = await prisma.publishingProgramme.findMany({
     where: { ministryId: id },
-    include: { books: { select: { status: true } } },
+    include: { books: { select: { id: true, status: true } } },
   });
   const hasActive = programmes.some((p) =>
     p.books.some((b) => b.status === "IN_PROGRESS" || b.status === "COMPLETE")
   );
   if (hasActive) throw new Error("Cannot delete a ministry that has active or completed books.");
 
+  const bookIds = programmes.flatMap((p) => p.books.map((b) => b.id));
+  await cascadeDeleteBooks(bookIds);
+  const progIds = programmes.map((p) => p.id);
+  if (progIds.length > 0) await prisma.publishingProgramme.deleteMany({ where: { id: { in: progIds } } });
+  await prisma.author.deleteMany({ where: { ministryId: id } });
   await prisma.ministry.delete({ where: { id } });
   revalidatePath("/ministries");
   revalidatePath("/");
@@ -184,11 +198,18 @@ export async function updateAuthor(formData: FormData) {
 
 // ── Delete Author ─────────────────────────────────────────────────────────────
 export async function deleteAuthor(id: string) {
-  const author = await prisma.author.findUnique({ where: { id }, include: { books: { select: { status: true } } } });
+  const author = await prisma.author.findUnique({
+    where: { id },
+    include: { books: { select: { id: true, status: true } }, programmes: { select: { id: true } } },
+  });
   if (!author) throw new Error("Author not found");
   const hasActive = author.books.some((b) => b.status === "IN_PROGRESS" || b.status === "COMPLETE");
   if (hasActive) throw new Error("Cannot delete an author with active or completed books.");
 
+  const bookIds = author.books.map((b) => b.id);
+  await cascadeDeleteBooks(bookIds);
+  const progIds = author.programmes.map((p) => p.id);
+  if (progIds.length > 0) await prisma.publishingProgramme.deleteMany({ where: { id: { in: progIds } } });
   await prisma.author.delete({ where: { id } });
   revalidatePath(`/ministries/${author.ministryId}`);
 }
@@ -216,12 +237,14 @@ export async function updateProgramme(formData: FormData) {
 export async function deleteProgramme(id: string) {
   const prog = await prisma.publishingProgramme.findUnique({
     where: { id },
-    include: { books: { select: { status: true } } },
+    include: { books: { select: { id: true, status: true } } },
   });
   if (!prog) throw new Error("Programme not found");
   const hasActive = prog.books.some((b) => b.status === "IN_PROGRESS" || b.status === "COMPLETE");
   if (hasActive) throw new Error("Cannot delete a programme with active or completed books.");
 
+  const bookIds = prog.books.map((b) => b.id);
+  await cascadeDeleteBooks(bookIds);
   await prisma.publishingProgramme.delete({ where: { id } });
   revalidatePath(`/ministries/${prog.ministryId}`);
   revalidatePath("/");
@@ -260,7 +283,7 @@ export async function deleteBook(id: string) {
   if (!book) throw new Error("Book not found");
   if (book.status === "IN_PROGRESS") throw new Error("Cannot delete a book that is in progress. Complete or reset it first.");
 
-  await prisma.book.delete({ where: { id } });
+  await cascadeDeleteBooks([id]);
   revalidatePath(`/ministries/${book.programme.ministryId}/programmes/${book.programmeId}`);
   revalidatePath("/");
 }
