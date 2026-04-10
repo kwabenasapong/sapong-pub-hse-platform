@@ -66,11 +66,13 @@ export function TextareaField({
   label,
   name,
   placeholder,
+  defaultValue,
   rows = 3,
 }: {
   label: string;
   name: string;
   placeholder?: string;
+  defaultValue?: string;
   rows?: number;
 }) {
   return (
@@ -80,6 +82,7 @@ export function TextareaField({
         name={name}
         rows={rows}
         placeholder={placeholder}
+        defaultValue={defaultValue}
         className="w-full border border-stone-200 rounded px-3 py-2 text-sm text-stone-800 placeholder:text-stone-300 focus:outline-none focus:ring-1 focus:ring-amber-400 focus:border-amber-400 resize-none"
       />
     </div>

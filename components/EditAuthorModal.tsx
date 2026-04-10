@@ -45,7 +45,7 @@ export default function EditAuthorModal({
         <Field label="Cultural Background" name="culturalBackground" defaultValue={culture?.background ?? ""} />
         <Field label="Cultural Markers" name="culturalMarkers" defaultValue={culture?.markers?.join(", ") ?? ""}
           placeholder="Ghana cedis, Tema branch (comma-separated)" />
-        <TextareaField label="Bio" name="bioText" placeholder="Brief biography…" />
+        <TextareaField label="Bio" name="bioText" placeholder="Brief biography…" defaultValue={author.bioText ?? ""} />
         {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
         <FormActions onClose={onClose} submitting={pending} />
       </form>
