@@ -509,7 +509,7 @@ export async function buildBookDocx(book: {
     backChildren.push(...parseTextToParas(sections["ABOUT THE AUTHOR"], bulletRef, fn, book.translation));
   }
   if (sections["MINISTRY PAGE"]) {
-    backChildren.push(...buildSectionTitle("Graceway Fountain Ministries"));
+    backChildren.push(...buildSectionTitle(book.programme.ministry.name));
     backChildren.push(spacer(120, 0));
     backChildren.push(...parseTextToParas(sections["MINISTRY PAGE"], bulletRef, fn, book.translation));
   }
