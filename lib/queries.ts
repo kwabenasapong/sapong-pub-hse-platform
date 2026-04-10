@@ -13,14 +13,29 @@ export async function getDashboardStats() {
 }
 
 export async function getRecentBooks(limit = 8) {
-  return prisma.book.findMany({
-    take: limit,
-    orderBy: { createdAt: "desc" },
+  // Order by most recent workflow step completion, falling back to createdAt
+  const books = await prisma.book.findMany({
+    take: limit * 3, // over-fetch so we can sort by last activity
+    where: { status: { not: "NOT_STARTED" } }, // only books that have been touched
     include: {
       programme: { include: { ministry: true } },
       workflowSteps: { orderBy: { stepNumber: "asc" } },
     },
+    orderBy: { createdAt: "desc" },
   });
+
+  // Sort by last workflow activity (most recent completedAt across all steps)
+  const withActivity = books.map((b) => {
+    const lastActivity = b.workflowSteps
+      .map((s) => s.completedAt)
+      .filter(Boolean)
+      .sort((a, b) => new Date(b!).getTime() - new Date(a!).getTime())[0] ?? b.createdAt;
+    return { ...b, lastActivity };
+  });
+
+  return withActivity
+    .sort((a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime())
+    .slice(0, limit);
 }
 
 // ── Ministries ────────────────────────────────────────────────────────────────
@@ -62,11 +77,17 @@ export async function getProgrammeById(id: string) {
   return prisma.publishingProgramme.findUnique({
     where: { id },
     include: {
-      ministry: true,
+      ministry: {
+        include: {
+          // Include all ministry authors so books can be assigned to any of them
+          authors: { select: { id: true, name: true, credentials: true } },
+        },
+      },
       author: true,
       books: {
         orderBy: { number: "asc" },
         include: {
+          author: { select: { id: true, name: true } },
           workflowSteps: { orderBy: { stepNumber: "asc" } },
         },
       },

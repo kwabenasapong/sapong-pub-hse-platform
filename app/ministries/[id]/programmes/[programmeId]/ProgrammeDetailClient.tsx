@@ -17,12 +17,13 @@ type Book = {
   translation: Translation; referenceAuthor: string | null;
   sizeCategory: SizeCategory; status: BookStatus;
   workflowSteps: WorkflowStep[];
+  author: { id: string; name: string } | null;
 };
 type Programme = {
   id: string; title: string; defaultTranslation: Translation;
   defaultReferenceAuthor: string | null; status: string;
   masterInstructions: unknown;
-  ministry: { id: string; name: string };
+  ministry: { id: string; name: string; authors: Array<{ id: string; name: string; credentials: string | null }> };
   author: { id: string; name: string };
   books: Book[];
 };
@@ -108,6 +109,7 @@ export default function ProgrammeDetailClient({
               <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Title</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Size</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Translation</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Author</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Status</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Workflow</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Current Step</th>
@@ -117,7 +119,7 @@ export default function ProgrammeDetailClient({
           <tbody className="divide-y divide-stone-100">
             {programme.books.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-5 py-10 text-center text-sm text-stone-400">
+                <td colSpan={9} className="px-5 py-10 text-center text-sm text-stone-400">
                   No books yet.{" "}
                   <button className="text-amber-600 hover:underline" onClick={() => setShowAddBook(true)}>
                     Add the first book.
@@ -138,6 +140,9 @@ export default function ProgrammeDetailClient({
                 </td>
                 <td className="px-4 py-3"><SizeBadge size={book.sizeCategory} /></td>
                 <td className="px-4 py-3"><TranslationBadge translation={book.translation} /></td>
+                <td className="px-4 py-3 text-xs text-stone-500">
+                  {book.author?.name ?? programme.author.name}
+                </td>
                 <td className="px-4 py-3"><BookStatusBadge status={book.status} /></td>
                 <td className="px-4 py-3"><WorkflowTracker steps={book.workflowSteps} /></td>
                 <td className="px-4 py-3 text-xs text-stone-500">{currentStepLabel(book.workflowSteps)}</td>
@@ -183,6 +188,7 @@ export default function ProgrammeDetailClient({
           authorId={programme.author.id}
           ministryId={ministryId}
           nextBookNumber={nextNumber}
+          authors={programme.ministry.authors}
           onClose={() => { setShowAddBook(false); refresh(); }}
         />
       )}
