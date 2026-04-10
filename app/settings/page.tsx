@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Fragment } from "react";
 import { PageHeader } from "@/components/ui";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -225,7 +225,8 @@ function UsageTab() {
     if (stepType) params.set("stepType", stepType);
     const res = await fetch("/api/settings/usage?" + params);
     const json = await res.json();
-    setData(json);
+    if (json?.summary) setData(json);
+    else setData({ summary: { totalInputTokens: 0, totalOutputTokens: 0, totalCostUsd: 0, logCount: 0 }, byMinistry: [] });
     // Load exchange rate from config
     const cfgRes = await fetch("/api/settings/config");
     const cfg = await cfgRes.json();
@@ -306,9 +307,9 @@ function UsageTab() {
             </thead>
             <tbody className="divide-y divide-stone-100">
               {byMinistry.map((m) => (
-                <>
+                <Fragment key={m.ministryId}>
                   {/* Ministry row */}
-                  <tr key={m.ministryId} className="bg-stone-50 cursor-pointer hover:bg-stone-100 transition-colors"
+                  <tr className="bg-stone-50 cursor-pointer hover:bg-stone-100 transition-colors"
                     onClick={() => toggle(`m_${m.ministryId}`)}>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">
@@ -322,8 +323,8 @@ function UsageTab() {
                   </tr>
                   {/* Author rows */}
                   {expanded[`m_${m.ministryId}`] && m.byAuthor.map((a) => (
-                    <>
-                      <tr key={a.authorId} className="cursor-pointer hover:bg-stone-50 transition-colors"
+                    <Fragment key={a.authorId}>
+                      <tr className="cursor-pointer hover:bg-stone-50 transition-colors"
                         onClick={() => toggle(`a_${a.authorId}`)}>
                         <td className="px-4 py-2 pl-10">
                           <div className="flex items-center gap-2">
@@ -337,8 +338,8 @@ function UsageTab() {
                       </tr>
                       {/* Book rows */}
                       {expanded[`a_${a.authorId}`] && a.byBook.map((b) => (
-                        <>
-                          <tr key={b.bookId} className="cursor-pointer hover:bg-stone-50"
+                        <Fragment key={b.bookId}>
+                          <tr className="cursor-pointer hover:bg-stone-50"
                             onClick={() => toggle(`b_${b.bookId}`)}>
                             <td className="px-4 py-1.5 pl-16 text-xs text-stone-600">
                               <span className="text-stone-300 mr-1">{expanded[`b_${b.bookId}`] ? "▼" : "▶"}</span>
@@ -359,11 +360,11 @@ function UsageTab() {
                               <td className="px-4 py-1 text-right text-xs text-stone-400">{fmt(sv.costUsd)}</td>
                             </tr>
                           ))}
-                        </>
+                        </Fragment>
                       ))}
-                    </>
+                    </Fragment>
                   ))}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -384,7 +385,8 @@ function ReferenceDataTab() {
 
   async function load() {
     const res = await fetch("/api/settings/refauthors");
-    setAuthors(await res.json());
+    const json = await res.json();
+    if (Array.isArray(json)) setAuthors(json);
   }
 
   useEffect(() => { load(); }, []);
