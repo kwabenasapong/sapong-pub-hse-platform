@@ -264,3 +264,92 @@ export async function deleteBook(id: string) {
   revalidatePath(`/ministries/${book.programme.ministryId}/programmes/${book.programmeId}`);
   revalidatePath("/");
 }
+
+// ── Setup Wizard — create ministry + author + programme + books in one shot ───
+export async function setupNewClient(data: {
+  ministry: { name: string; slug: string; logoUrl?: string };
+  author: {
+    name: string; credentials?: string; bioText?: string;
+    voiceProfile: object; culturalContext: object;
+  };
+  programme: {
+    title: string; defaultTranslation: Translation;
+    defaultReferenceAuthor?: string;
+  };
+  books: Array<{
+    number: number; title: string; translation: Translation;
+    sizeCategory: SizeCategory; referenceAuthor?: string;
+  }>;
+}) {
+  const wordCountMap: Record<SizeCategory, [number, number]> = {
+    FULL: [18000, 25000], MEDIUM_FULL: [12000, 18000],
+    MEDIUM: [8000, 12000], SHORT: [3000, 8000],
+  };
+
+  // 1. Ministry
+  const ministry = await prisma.ministry.create({
+    data: {
+      name: data.ministry.name.trim(),
+      slug: data.ministry.slug,
+      logoUrl: data.ministry.logoUrl || null,
+    },
+  });
+
+  // 2. Author
+  const author = await prisma.author.create({
+    data: {
+      ministryId: ministry.id,
+      name: data.author.name.trim(),
+      credentials: data.author.credentials || null,
+      bioText: data.author.bioText || null,
+      voiceProfile: data.author.voiceProfile,
+      culturalContext: data.author.culturalContext,
+    },
+  });
+
+  // 3. Programme
+  const programme = await prisma.publishingProgramme.create({
+    data: {
+      ministryId: ministry.id,
+      authorId: author.id,
+      title: data.programme.title.trim(),
+      defaultTranslation: data.programme.defaultTranslation,
+      defaultReferenceAuthor: data.programme.defaultReferenceAuthor || null,
+      status: "ACTIVE",
+    },
+  });
+
+  // 4. Books + workflow steps
+  for (const b of data.books) {
+    if (!b.title.trim()) continue;
+    const [min, max] = wordCountMap[b.sizeCategory] ?? [8000, 18000];
+    const book = await prisma.book.create({
+      data: {
+        programmeId: programme.id,
+        authorId: author.id,
+        number: b.number,
+        title: b.title.trim(),
+        translation: b.translation,
+        referenceAuthor: b.referenceAuthor || null,
+        sizeCategory: b.sizeCategory,
+        status: "NOT_STARTED",
+        targetWordCountMin: min,
+        targetWordCountMax: max,
+      },
+    });
+
+    await prisma.workflowStep.createMany({
+      data: [
+        { bookId: book.id, stepNumber: 1, stepName: "Intake",              status: "PENDING" },
+        { bookId: book.id, stepNumber: 2, stepName: "Analysis Report",     status: "PENDING" },
+        { bookId: book.id, stepNumber: 3, stepName: "Chapter Outline",     status: "PENDING" },
+        { bookId: book.id, stepNumber: 4, stepName: "Chapter Drafts",      status: "PENDING" },
+        { bookId: book.id, stepNumber: 5, stepName: "Front & Back Matter", status: "PENDING" },
+      ],
+    });
+  }
+
+  revalidatePath("/ministries");
+  revalidatePath("/");
+  return { ministryId: ministry.id, programmeId: programme.id };
+}
