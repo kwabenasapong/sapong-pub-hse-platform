@@ -15,6 +15,57 @@ import {
 
 // ── Prompt builders ───────────────────────────────────────────────────────────
 
+export const maxDuration = 300;
+
+const META_MARKER_START = "<<__WORKFLOW_META__";
+const META_MARKER_END = ">>";
+const MAX_CONTINUATIONS = 4;
+
+type GenerationMeta = {
+  status: "complete" | "incomplete" | "error";
+  stopReason: string | null;
+  continuations: number;
+  message?: string;
+};
+
+function getStepMaxTokens(stepNumber: number, sizeCategory?: string): number {
+  if (stepNumber === 2) return 8192;
+  if (stepNumber === 3) return 8192;
+  if (stepNumber === 5) return 8192;
+
+  if (stepNumber === 4) {
+    const chapterBudgets: Record<string, number> = {
+      FULL: 7168,
+      MEDIUM_FULL: 6144,
+      MEDIUM: 5120,
+      SHORT: 4096,
+    };
+    return chapterBudgets[sizeCategory ?? ""] ?? 6144;
+  }
+
+  return 4096;
+}
+
+function buildMetaChunk(meta: GenerationMeta): string {
+  return `\n${META_MARKER_START}${JSON.stringify(meta)}${META_MARKER_END}`;
+}
+
+function buildContinuationInstruction(stepNumber: number, chapterNumber?: string): string {
+  if (stepNumber === 4 && chapterNumber) {
+    return [
+      `Continue Chapter ${chapterNumber} exactly from where you stopped.`,
+      "Do not restart the chapter, do not repeat prior paragraphs, and do not add commentary about continuing.",
+      "Output only the remaining chapter text.",
+    ].join(" ");
+  }
+
+  return [
+    "Continue exactly from where you stopped.",
+    "Do not restart, do not summarize, do not repeat prior sections, and do not add commentary about continuing.",
+    "Output only the remaining text.",
+  ].join(" ");
+}
+
 
 export async function POST(req: NextRequest) {
   let bookId: string, stepNumber: number, chapterNumber: string | undefined, feedback: string | undefined;
@@ -114,39 +165,12 @@ export async function POST(req: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       let fullText = "";
-      try {
-        const claudeStream = await anthropic.messages.stream({
-          model: model,
-          max_tokens: 4096,
-          messages: [{ role: "user", content: prompt }],
-        });
+      let totalInputTokens = 0;
+      let totalOutputTokens = 0;
+      let continuations = 0;
+      let finalStopReason: string | null = null;
 
-        for await (const chunk of claudeStream) {
-          if (
-            chunk.type === "content_block_delta" &&
-            chunk.delta.type === "text_delta"
-          ) {
-            fullText += chunk.delta.text;
-            controller.enqueue(encoder.encode(chunk.delta.text));
-          }
-        }
-
-        // Capture token usage and log cost
-        try {
-          const finalMsg = await claudeStream.finalMessage();
-          const { input_tokens, output_tokens } = finalMsg.usage;
-          await logAiUsage({
-            ministryId,
-            authorId,
-            bookId,
-            stepType: stepTypeFromNumber(stepNumber),
-            model,
-            inputTokens:  input_tokens,
-            outputTokens: output_tokens,
-          });
-        } catch { /* logging must never break the workflow */ }
-
-        // Save output to DB after streaming completes
+      const saveOutput = async () => {
         if (stepNumber === 4 && chapterNumber) {
           const chNum = parseInt(chapterNumber, 10);
           const wordCount = fullText.split(/\s+/).filter(Boolean).length;
@@ -165,14 +189,104 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        // Update book status to IN_PROGRESS if not already
         await prisma.book.update({
           where: { id: bookId },
           data: { status: "IN_PROGRESS" },
         });
+      };
+
+      try {
+        const maxTokens = getStepMaxTokens(stepNumber, book.sizeCategory);
+        const continuationInstruction = buildContinuationInstruction(stepNumber, chapterNumber);
+
+        while (true) {
+          const messages = continuations === 0
+            ? [{ role: "user" as const, content: prompt }]
+            : [
+                { role: "user" as const, content: prompt },
+                { role: "assistant" as const, content: fullText },
+                { role: "user" as const, content: continuationInstruction },
+              ];
+
+          const claudeStream = await anthropic.messages.stream({
+            model: model,
+            max_tokens: maxTokens,
+            messages,
+          });
+
+          for await (const chunk of claudeStream) {
+            if (
+              chunk.type === "content_block_delta" &&
+              chunk.delta.type === "text_delta"
+            ) {
+              fullText += chunk.delta.text;
+              controller.enqueue(encoder.encode(chunk.delta.text));
+            }
+          }
+
+          const finalMsg = await claudeStream.finalMessage();
+          totalInputTokens += finalMsg.usage.input_tokens;
+          totalOutputTokens += finalMsg.usage.output_tokens;
+          finalStopReason = finalMsg.stop_reason;
+
+          if (
+            finalStopReason === "end_turn" ||
+            finalStopReason === "stop_sequence"
+          ) {
+            break;
+          }
+
+          if (
+            (finalStopReason === "max_tokens" || finalStopReason === "pause_turn") &&
+            continuations < MAX_CONTINUATIONS &&
+            fullText.trim()
+          ) {
+            continuations += 1;
+            continue;
+          }
+
+          break;
+        }
+
+        if (totalInputTokens > 0 || totalOutputTokens > 0) {
+          await logAiUsage({
+            ministryId,
+            authorId,
+            bookId,
+            stepType: stepTypeFromNumber(stepNumber),
+            model,
+            inputTokens: totalInputTokens,
+            outputTokens: totalOutputTokens,
+          });
+        }
+
+        await saveOutput();
+
+        const complete = finalStopReason === "end_turn" || finalStopReason === "stop_sequence";
+        controller.enqueue(encoder.encode(buildMetaChunk({
+          status: complete ? "complete" : "incomplete",
+          stopReason: finalStopReason,
+          continuations,
+          message: complete
+            ? undefined
+            : "Generation stopped before Claude reached a natural stopping point. Review the output and regenerate if needed.",
+        })));
 
       } catch (err) {
-        controller.enqueue(encoder.encode(`\n\n[ERROR: ${err instanceof Error ? err.message : "Unknown error"}]`));
+        try {
+          if (fullText.trim()) {
+            await saveOutput();
+          }
+        } catch {
+          // Persistence failures should not mask generation failures.
+        }
+
+        controller.enqueue(encoder.encode(buildMetaChunk({
+          status: "error",
+          stopReason: finalStopReason,
+          continuations,
+          message: err instanceof Error ? err.message : "Unknown error",
+        })));
       } finally {
         controller.close();
       }

@@ -26,6 +26,33 @@ type Book = {
   transcripts: Transcript[];
 };
 
+type GenerationMeta = {
+  status: "complete" | "incomplete" | "error";
+  stopReason: string | null;
+  continuations: number;
+  message?: string;
+};
+
+const META_MARKER_START = "<<__WORKFLOW_META__";
+const META_MARKER_RE = /\n?<<__WORKFLOW_META__(\{[\s\S]*\})>>\s*$/;
+
+function stripGenerationMeta(text: string): string {
+  const markerIndex = text.indexOf(META_MARKER_START);
+  if (markerIndex === -1) return text;
+  return text.slice(0, markerIndex).trimEnd();
+}
+
+function parseGenerationMeta(text: string): GenerationMeta | null {
+  const match = text.match(META_MARKER_RE);
+  if (!match) return null;
+
+  try {
+    return JSON.parse(match[1]) as GenerationMeta;
+  } catch {
+    return null;
+  }
+}
+
 // ── Revert Confirmation Dialog ────────────────────────────────────────────────
 function RevertDialog({
   stepNumber, stepName, onConfirm, onCancel,
@@ -253,6 +280,41 @@ function AIOutput({ text, streaming }: { text: string; streaming: boolean }) {
   );
 }
 
+function GenerationBanner({ meta }: { meta: GenerationMeta }) {
+  if (meta.status === "error") {
+    return (
+      <div className="mt-3 border border-red-200 bg-red-50 rounded-lg px-3 py-2">
+        <p className="text-xs font-medium text-red-700">Generation failed before completion.</p>
+        {meta.message && <p className="text-xs text-red-600 mt-1">{meta.message}</p>}
+      </div>
+    );
+  }
+
+  if (meta.status === "incomplete") {
+    return (
+      <div className="mt-3 border border-amber-200 bg-amber-50 rounded-lg px-3 py-2">
+        <p className="text-xs font-medium text-amber-700">Generation stopped before completion.</p>
+        <p className="text-xs text-amber-600 mt-1">
+          {meta.message ?? "Claude did not reach a natural stopping point."}
+          {meta.stopReason ? ` Stop reason: ${meta.stopReason}.` : ""}
+        </p>
+      </div>
+    );
+  }
+
+  if (meta.continuations > 0) {
+    return (
+      <div className="mt-3 border border-blue-200 bg-blue-50 rounded-lg px-3 py-2">
+        <p className="text-xs font-medium text-blue-700">
+          Generation completed after {meta.continuations} continuation{meta.continuations === 1 ? "" : "s"}.
+        </p>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 // ── Approved Step Footer ──────────────────────────────────────────────────────
 function ApprovedFooter({
   onRevert, onRegenerate, streaming,
@@ -286,6 +348,7 @@ export default function BookWorkflow({ book }: { book: Book }) {
   });
   const [streaming, setStreaming] = useState(false);
   const [streamText, setStreamText] = useState<Record<string, string>>({});
+  const [generationMeta, setGenerationMeta] = useState<Record<string, GenerationMeta | null>>({});
   const [approving, setApproving] = useState(false);
   const [activeChapter, setActiveChapter] = useState(1);
   const [revertTarget, setRevertTarget] = useState<{ stepNumber: number; stepName: string } | null>(null);
@@ -313,6 +376,7 @@ export default function BookWorkflow({ book }: { book: Book }) {
   const runAI = useCallback(async (stepNumber: number, chapterNumber?: number, feedback?: string) => {
     const key = streamKey(stepNumber, chapterNumber);
     setStreamText((prev) => ({ ...prev, [key]: "" }));
+    setGenerationMeta((prev) => ({ ...prev, [key]: null }));
     setStreaming(true);
     if (abortRef.current) abortRef.current.abort();
     abortRef.current = new AbortController();
@@ -326,14 +390,29 @@ export default function BookWorkflow({ book }: { book: Book }) {
       if (!res.ok || !res.body) throw new Error("Stream failed");
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
+      let rawText = "";
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        setStreamText((prev) => ({ ...prev, [key]: (prev[key] ?? "") + decoder.decode(value, { stream: true }) }));
+        const chunk = decoder.decode(value, { stream: true });
+        rawText += chunk;
+        setStreamText((prev) => ({ ...prev, [key]: stripGenerationMeta(rawText) }));
       }
+      rawText += decoder.decode();
+      const meta = parseGenerationMeta(rawText);
+      setGenerationMeta((prev) => ({ ...prev, [key]: meta }));
+      setStreamText((prev) => ({ ...prev, [key]: stripGenerationMeta(rawText) }));
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
-        setStreamText((prev) => ({ ...prev, [key]: (prev[key] ?? "") + "\n\n[Generation stopped]" }));
+        setGenerationMeta((prev) => ({
+          ...prev,
+          [key]: {
+            status: "error",
+            stopReason: null,
+            continuations: 0,
+            message: err instanceof Error ? err.message : "Generation stopped",
+          },
+        }));
       }
     } finally {
       setStreaming(false);
@@ -365,6 +444,7 @@ export default function BookWorkflow({ book }: { book: Book }) {
     setRevertTarget(null);
     // Clear stream text for this step and all downstream
     setStreamText({});
+    setGenerationMeta({});
     await callApprove({ bookId: book.id, stepNumber, action: "revert" }, cascade);
     setExpanded(stepNumber);
   }, [book.id, callApprove]);
@@ -574,8 +654,10 @@ export default function BookWorkflow({ book }: { book: Book }) {
           { n: 5, name: "Front & Back Matter", btn: "Generate Front & Back Matter" },
         ] as const).map(({ n, name, btn }) => {
           const s = step(n);
+          const key = streamKey(n);
           const text = getStepText(n);
-          const isStreaming = streaming && streamText[streamKey(n)] !== undefined && !streamText[streamKey(n + 1)];
+          const meta = generationMeta[key];
+          const isStreaming = streaming && streamText[key] !== undefined && !streamText[streamKey(n + 1)];
 
           return (
             <div key={n}>
@@ -601,6 +683,7 @@ export default function BookWorkflow({ book }: { book: Book }) {
                     ) : (
                       <div>
                         <AIOutput text={text} streaming={isStreaming} />
+                        {meta && !isStreaming && <GenerationBanner meta={meta} />}
                         {s.status !== "APPROVED" && !isStreaming && (
                           <ApproveBar
                             onApprove={() => approveStep(n)}
@@ -694,6 +777,7 @@ export default function BookWorkflow({ book }: { book: Book }) {
                     const ch = book.chapters.find((c) => c.chapterNumber === activeChapter);
                     const chKey = streamKey(4, activeChapter);
                     const text = getStepText(4, activeChapter);
+                    const meta = generationMeta[chKey];
                     const isStreaming = streaming && streamText[chKey] !== undefined;
                     return (
                       <div className="border border-stone-200 rounded-lg overflow-hidden">
@@ -727,6 +811,7 @@ export default function BookWorkflow({ book }: { book: Book }) {
                           {text ? (
                             <div>
                               <AIOutput text={text} streaming={isStreaming} />
+                              {meta && !isStreaming && <GenerationBanner meta={meta} />}
                               {ch?.status !== "APPROVED" && !isStreaming && (
                                 <ApproveBar
                                   onApprove={() => approveChapter(activeChapter)}
