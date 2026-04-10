@@ -1,8 +1,10 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
+import { getConfig } from "@/lib/config";
+import { logAiUsage, stepTypeFromNumber } from "@/lib/pricing";
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// Client instantiated per-request using config (see POST handler)
 
 // ── Prompt builders ───────────────────────────────────────────────────────────
 
@@ -203,6 +205,15 @@ export async function POST(req: NextRequest) {
   }
   if (!book) return new Response("Book not found", { status: 404 });
 
+  // Load config for this request
+  const apiKey = await getConfig("anthropicApiKey");
+  const model  = await getConfig("anthropicModel");
+  const anthropic = new Anthropic({ apiKey: apiKey || process.env.ANTHROPIC_API_KEY });
+
+  // Resolve ministry and author for usage logging
+  const ministryId = book.programme.ministryId;
+  const authorId   = book.authorId;
+
   const transcriptTexts = book.transcripts.map((t) => t.rawText);
   const step2Output = book.workflowSteps.find((s) => s.stepNumber === 2)?.outputText ?? "";
   const step3Output = book.workflowSteps.find((s) => s.stepNumber === 3)?.outputText ?? "";
@@ -281,7 +292,7 @@ export async function POST(req: NextRequest) {
       let fullText = "";
       try {
         const claudeStream = await anthropic.messages.stream({
-          model: "claude-sonnet-4-6",
+          model: model,
           max_tokens: 4096,
           messages: [{ role: "user", content: prompt }],
         });
@@ -295,6 +306,21 @@ export async function POST(req: NextRequest) {
             controller.enqueue(encoder.encode(chunk.delta.text));
           }
         }
+
+        // Capture token usage and log cost
+        try {
+          const finalMsg = await claudeStream.finalMessage();
+          const { input_tokens, output_tokens } = finalMsg.usage;
+          await logAiUsage({
+            ministryId,
+            authorId,
+            bookId,
+            stepType: stepTypeFromNumber(stepNumber),
+            model,
+            inputTokens:  input_tokens,
+            outputTokens: output_tokens,
+          });
+        } catch { /* logging must never break the workflow */ }
 
         // Save output to DB after streaming completes
         if (stepNumber === 4 && chapterNumber) {

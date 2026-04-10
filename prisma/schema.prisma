@@ -57,6 +57,7 @@ model Ministry {
 
   authors    Author[]
   programmes PublishingProgramme[]
+  aiUsageLogs AiUsageLog[]
 }
 
 model Author {
@@ -171,4 +172,31 @@ model Document {
 
 datasource db {
   provider = "postgresql"
+}
+
+model PlatformConfig {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+model ReferenceAuthor {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+}
+
+model AiUsageLog {
+  id           String   @id @default(cuid())
+  ministryId   String
+  authorId     String?
+  bookId       String?
+  stepType     String
+  model        String
+  inputTokens  Int
+  outputTokens Int
+  costUsd      Decimal  @db.Decimal(10, 6)
+  createdAt    DateTime @default(now())
+
+  ministry Ministry @relation(fields: [ministryId], references: [id])
 }

@@ -167,6 +167,33 @@ async function main() {
     bookCount++;
   }
   console.log(`   ✅  Books seeded: ${bookCount} (each with 5 workflow steps)`);
+  // ── Reference authors ─────────────────────────────────────────────────────
+  const REF_AUTHORS = ["Oyedepo", "Adeyemi", "Munroe", "Ashimolowo"];
+  for (const name of REF_AUTHORS) {
+    await prisma.referenceAuthor.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+  }
+  console.log(`   ✅  Reference authors seeded: ${REF_AUTHORS.join(", ")}`);
+
+  // ── Default platform config ───────────────────────────────────────────────
+  const DEFAULT_CONFIG = [
+    { key: "anthropicModel",    value: "claude-sonnet-4-6" },
+    { key: "exportFont",        value: "Georgia" },
+    { key: "exportPageSize",    value: "letter" },
+    { key: "exchangeRateGHS",   value: "15.5" },
+    { key: "usageLogRetention", value: "12" },
+  ];
+  for (const cfg of DEFAULT_CONFIG) {
+    await prisma.platformConfig.upsert({
+      where: { key: cfg.key },
+      update: {},
+      create: cfg,
+    });
+  }
+  console.log("   ✅  Default platform config seeded");
   console.log("\n🎉  Seed complete.");
 }
 

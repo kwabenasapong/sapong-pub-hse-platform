@@ -1,14 +1,20 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { getConfig } from "@/lib/config";
+import { logAiUsage } from "@/lib/pricing";
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// Client instantiated per-request using config
 
 export async function POST(req: NextRequest) {
   try {
-    const { sample, authorName } = await req.json();
+    const { sample, authorName, ministryId } = await req.json();
     if (!sample?.trim()) {
       return new Response("Sample text required", { status: 400 });
     }
+
+    const apiKey = await getConfig("anthropicApiKey");
+    const model  = await getConfig("anthropicModel");
+    const anthropic = new Anthropic({ apiKey: apiKey || process.env.ANTHROPIC_API_KEY });
 
     const prompt = `You are a publishing editor analysing a preacher's sermon to build their author voice profile.
 
@@ -40,7 +46,7 @@ Base everything strictly on what is present in the sermon sample. Do not invent 
       async start(controller) {
         try {
           const claudeStream = await anthropic.messages.stream({
-            model: "claude-sonnet-4-6",
+            model: model,
             max_tokens: 1024,
             messages: [{ role: "user", content: prompt }],
           });
@@ -53,6 +59,20 @@ Base everything strictly on what is present in the sermon sample. Do not invent 
               controller.enqueue(encoder.encode(chunk.delta.text));
             }
           }
+          // Log usage after stream
+          try {
+            const finalMsg = await claudeStream.finalMessage();
+            const { input_tokens, output_tokens } = finalMsg.usage;
+            if (ministryId) {
+              await logAiUsage({
+                ministryId,
+                stepType: "voice_deduction",
+                model,
+                inputTokens:  input_tokens,
+                outputTokens: output_tokens,
+              });
+            }
+          } catch { /* never break the stream */ }
         } catch (err) {
           controller.enqueue(
             encoder.encode(`{"error": "${err instanceof Error ? err.message : "Generation failed"}"}`)
