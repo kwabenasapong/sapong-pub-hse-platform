@@ -107,7 +107,7 @@ function PlatformTab() {
     const isDirty = editVal !== undefined;
 
     return (
-      <div className="flex items-start justify-between py-3 border-b border-stone-100 last:border-0">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between py-3 border-b border-stone-100 last:border-0 gap-2">
         <div className="flex-1 mr-4">
           <div className="flex items-center gap-2 mb-1">
             <p className="text-sm font-medium text-stone-700">{label}</p>
@@ -275,7 +275,7 @@ function UsageTab() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: "Total Cost",      value: fmt(summary.totalCostUsd) },
           { label: "AI Calls",        value: summary.logCount.toLocaleString() },
@@ -295,8 +295,8 @@ function UsageTab() {
           No AI usage logged yet. Usage is recorded when workflow steps are run.
         </div>
       ) : (
-        <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white border border-stone-200 rounded-lg overflow-hidden overflow-x-auto">
+          <table className="w-full text-sm min-w-[600px]">
             <thead>
               <tr className="bg-stone-50 border-b border-stone-100">
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-stone-400 uppercase tracking-wider">Ministry / Author / Book</th>
@@ -503,11 +503,11 @@ export default function SettingsPage() {
   const [tab, setTab] = useState<"platform" | "usage" | "reference">("platform");
 
   return (
-    <div className="p-8 max-w-4xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
       <PageHeader title="Settings" subtitle="Platform configuration and AI usage" />
 
       {/* Tab bar */}
-      <div className="flex gap-1 border-b border-stone-200 mb-6">
+      <div className="flex flex-wrap gap-1 border-b border-stone-200 mb-6">
         {([
           { id: "platform",  label: "Platform" },
           { id: "usage",     label: "AI Usage & Costs" },

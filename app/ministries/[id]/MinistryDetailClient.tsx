@@ -59,7 +59,7 @@ export default function MinistryDetailClient({ ministry }: { ministry: Ministry 
   }
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl">
       <p className="text-xs text-stone-400 mb-4">
         <Link href="/ministries" className="hover:text-stone-600">Ministries</Link>
         <span className="mx-1.5">›</span>
@@ -126,7 +126,7 @@ export default function MinistryDetailClient({ ministry }: { ministry: Ministry 
                             className="text-xs text-red-400 hover:text-red-600 transition-colors">Delete</button>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4 mt-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                         {voice && (
                           <div>
                             <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-1.5">Voice</p>
@@ -187,7 +187,7 @@ export default function MinistryDetailClient({ ministry }: { ministry: Ministry 
                           "bg-stone-100 text-stone-500"}`}>{prog.status}</span>
                       </div>
                     </Link>
-                    <div className="flex items-center gap-5 ml-4 flex-shrink-0">
+                    <div className="hidden sm:flex items-center gap-5 ml-4 flex-shrink-0">
                       <div className="text-right">
                         <p className="text-xs text-stone-400">Books</p>
                         <p className="font-semibold text-stone-700">{total}</p>

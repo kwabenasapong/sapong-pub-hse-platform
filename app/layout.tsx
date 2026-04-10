@@ -12,7 +12,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="flex h-screen bg-stone-50 text-stone-900 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto">
+        {/* pt-12 on mobile to clear the hamburger button, none on sm+ */}
+        <main className="flex-1 overflow-y-auto pt-12 sm:pt-0">
           {children}
         </main>
       </body>

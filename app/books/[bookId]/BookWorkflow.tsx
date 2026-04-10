@@ -246,7 +246,7 @@ function AIOutput({ text, streaming }: { text: string; streaming: boolean }) {
     if (streaming && ref.current) ref.current.scrollTop = ref.current.scrollHeight;
   }, [text, streaming]);
   return (
-    <pre ref={ref} className="whitespace-pre-wrap text-sm text-stone-700 font-sans bg-stone-50 border border-stone-200 rounded-lg p-4 max-h-96 overflow-y-auto leading-relaxed">
+    <pre ref={ref} className="whitespace-pre-wrap text-sm text-stone-700 font-sans bg-stone-50 border border-stone-200 rounded-lg p-3 sm:p-4 max-h-72 sm:max-h-96 overflow-y-auto leading-relaxed">
       {text}
       {streaming && <span className="inline-block w-1.5 h-4 bg-amber-500 ml-0.5 animate-pulse" />}
     </pre>
@@ -672,7 +672,7 @@ export default function BookWorkflow({ book }: { book: Book }) {
                   <NotesPanel stepNumber={4} bookId={book.id} initialNotes={s.notes} />
 
                   {/* Chapter tab grid */}
-                  <div className="flex flex-wrap gap-1.5 mt-3 mb-4">
+                  <div className="flex flex-wrap gap-1 sm:gap-1.5 mt-3 mb-4">
                     {Array.from({ length: expectedChapters }, (_, i) => i + 1).map((n) => {
                       const ch = book.chapters.find((c) => c.chapterNumber === n);
                       return (
@@ -697,7 +697,7 @@ export default function BookWorkflow({ book }: { book: Book }) {
                     const isStreaming = streaming && streamText[chKey] !== undefined;
                     return (
                       <div className="border border-stone-200 rounded-lg overflow-hidden">
-                        <div className="flex items-center justify-between px-4 py-3 bg-stone-50 border-b border-stone-200">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 bg-stone-50 border-b border-stone-200 gap-2">
                           <div>
                             <p className="text-sm font-medium text-stone-700">
                               Chapter {activeChapter}{ch?.title ? `: ${ch.title}` : ""}

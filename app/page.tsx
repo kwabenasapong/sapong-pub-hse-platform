@@ -22,14 +22,14 @@ export default async function DashboardPage() {
   ]);
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl">
       <PageHeader
         title="Dashboard"
         subtitle="Overview of the Sapong Publishing House platform"
       />
 
       {/* Stat cards */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
         <StatCard label="Ministries"  value={stats.ministries} />
         <StatCard label="Programmes"  value={stats.programmes} />
         <StatCard label="Total Books" value={stats.books} sub="across all programmes" />
@@ -90,7 +90,7 @@ export default async function DashboardPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 flex-shrink-0 ml-4">
+                  <div className="hidden sm:flex items-center gap-4 flex-shrink-0 ml-4">
                     <WorkflowTracker steps={book.workflowSteps} />
                     <BookStatusBadge status={book.status} />
                     <span className="text-xs text-stone-400 w-16 text-right">

@@ -72,7 +72,7 @@ export default function ProgrammeDetailClient({
   }
 
   return (
-    <div className="p-8 max-w-6xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl">
       <p className="text-xs text-stone-400 mb-4">
         <Link href="/ministries" className="hover:text-stone-600">Ministries</Link>
         <span className="mx-1.5">›</span>
@@ -102,17 +102,18 @@ export default function ProgrammeDetailClient({
       />
 
       <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-stone-100 bg-stone-50">
               <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider w-10">#</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Title</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Size</th>
+              <th className="hidden lg:table-cell text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Size</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Translation</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Author</th>
+              <th className="hidden xl:table-cell text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Author</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Status</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Workflow</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Current Step</th>
+              <th className="hidden md:table-cell text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Workflow</th>
+              <th className="hidden lg:table-cell text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Current Step</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -138,14 +139,14 @@ export default function ProgrammeDetailClient({
                     <p className="text-[11px] text-stone-400 mt-0.5">{book.referenceAuthor}</p>
                   )}
                 </td>
-                <td className="px-4 py-3"><SizeBadge size={book.sizeCategory} /></td>
+                <td className="hidden lg:table-cell px-4 py-3"><SizeBadge size={book.sizeCategory} /></td>
                 <td className="px-4 py-3"><TranslationBadge translation={book.translation} /></td>
-                <td className="px-4 py-3 text-xs text-stone-500">
+                <td className="hidden xl:table-cell px-4 py-3 text-xs text-stone-500">
                   {book.author?.name ?? programme.author.name}
                 </td>
                 <td className="px-4 py-3"><BookStatusBadge status={book.status} /></td>
-                <td className="px-4 py-3"><WorkflowTracker steps={book.workflowSteps} /></td>
-                <td className="px-4 py-3 text-xs text-stone-500">{currentStepLabel(book.workflowSteps)}</td>
+                <td className="hidden md:table-cell px-4 py-3"><WorkflowTracker steps={book.workflowSteps} /></td>
+                <td className="hidden lg:table-cell px-4 py-3 text-xs text-stone-500">{currentStepLabel(book.workflowSteps)}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Link href={`/books/${book.id}`}
@@ -167,7 +168,8 @@ export default function ProgrammeDetailClient({
           </tbody>
         </table>
 
-        <div className="px-4 py-3 border-t border-stone-100 bg-stone-50 flex items-center gap-6 text-xs text-stone-400">
+        </div>
+        <div className="px-4 py-3 border-t border-stone-100 bg-stone-50 flex flex-wrap items-center gap-3 sm:gap-6 text-xs text-stone-400">
           <span>{programme.books.length} books total</span>
           <span className="text-green-600">{complete} complete</span>
           <span className="text-blue-600">{inProgress} in progress</span>

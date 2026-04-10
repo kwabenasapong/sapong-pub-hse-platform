@@ -47,7 +47,7 @@ const STEPS = ["Ministry", "Author", "Voice Profile", "Programme", "Books"];
 
 function StepIndicator({ current }: { current: number }) {
   return (
-    <div className="flex items-center gap-0 mb-8">
+    <div className="flex items-center gap-0 mb-6 md:mb-8 overflow-x-auto pb-1">
       {STEPS.map((name, i) => {
         const done    = i < current;
         const active  = i === current;
@@ -275,7 +275,7 @@ export default function SetupWizardPage() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl">
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-stone-800">New Client Setup</h1>
         <p className="text-sm text-stone-500 mt-1">
@@ -414,7 +414,7 @@ export default function SetupWizardPage() {
                   value={voiceEdit.style}
                   onChange={(e) => setVoiceEdit({ ...voiceEdit, style: e.target.value })} />
               </F>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <F label="Reference Author">
                   <select className={selectCls} value={voiceEdit.referenceAuthor}
                     onChange={(e) => setVoiceEdit({ ...voiceEdit, referenceAuthor: e.target.value })}>
@@ -487,7 +487,7 @@ export default function SetupWizardPage() {
               onChange={(e) => setProgramme({ ...programme, title: e.target.value })}
               placeholder="e.g. 40-Book Publishing Programme" />
           </F>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <F label="Default Translation">
               <select className={selectCls} value={programme.defaultTranslation}
                 onChange={(e) => setProgramme({ ...programme, defaultTranslation: e.target.value as Translation })}>
@@ -593,7 +593,7 @@ export default function SetupWizardPage() {
       )}
 
       {/* ── Navigation ── */}
-      <div className="flex items-center justify-between mt-6">
+      <div className="flex items-center justify-between mt-4 md:mt-6">
         <button
           onClick={() => { setError(null); setStep((s) => Math.max(0, s - 1)); }}
           disabled={step === 0}

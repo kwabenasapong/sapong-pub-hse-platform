@@ -36,7 +36,7 @@ export default function MinistriesPage() {
   }
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl">
       <PageHeader
         title="Ministries"
         subtitle="All ministry clients on the platform"
@@ -57,15 +57,15 @@ export default function MinistriesPage() {
         </div>
       )}
 
-      <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
+      <div className="bg-white border border-stone-200 rounded-lg overflow-hidden overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-stone-100 bg-stone-50">
               <th className="text-left px-5 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Ministry</th>
-              <th className="text-center px-5 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Authors</th>
+              <th className="hidden md:table-cell text-center px-5 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Authors</th>
               <th className="text-center px-5 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Programmes</th>
               <th className="text-center px-5 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Books</th>
-              <th className="text-center px-5 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Progress</th>
+              <th className="hidden md:table-cell text-center px-5 py-3 text-xs font-semibold text-stone-400 uppercase tracking-wider">Progress</th>
               <th className="px-5 py-3" />
             </tr>
           </thead>
@@ -85,10 +85,10 @@ export default function MinistriesPage() {
                       <p className="font-medium text-stone-800">{m.name}</p>
                     </div>
                   </td>
-                  <td className="px-5 py-4 text-center text-stone-600">{m.authorCount}</td>
+                  <td className="hidden md:table-cell px-5 py-4 text-center text-stone-600">{m.authorCount}</td>
                   <td className="px-5 py-4 text-center text-stone-600">{m.programmeCount}</td>
                   <td className="px-5 py-4 text-center text-stone-600">{m.bookCount}</td>
-                  <td className="px-5 py-4">
+                  <td className="hidden md:table-cell px-5 py-4">
                     <div className="flex flex-col items-center gap-1">
                       <div className="w-full bg-stone-100 rounded-full h-1.5 max-w-[80px]">
                         <div className="bg-green-400 h-1.5 rounded-full" style={{ width: `${pct}%` }} />

@@ -18,7 +18,7 @@ export default async function BookDetailPage({ params }: { params: { bookId: str
   const canExport = approvedChapters > 0; // export available once at least one chapter is approved
 
   return (
-    <div className="p-8 max-w-4xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
       {/* Breadcrumb */}
       <p className="text-xs text-stone-400 mb-4">
         <Link href="/ministries" className="hover:text-stone-600">Ministries</Link>
@@ -35,7 +35,7 @@ export default async function BookDetailPage({ params }: { params: { bookId: str
       </p>
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4 sm:mb-6 gap-3">
         <div>
           <div className="flex items-center gap-2 mb-2">
             <span className="text-xs font-mono text-stone-400">Book {book.number}</span>
