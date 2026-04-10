@@ -28,6 +28,12 @@ export async function POST(req: NextRequest) {
       data: { status: "APPROVED", completedAt: new Date() },
     });
 
+    // Unlock step 2
+    await prisma.workflowStep.update({
+      where: { bookId_stepNumber: { bookId, stepNumber: 2 } },
+      data: { status: "IN_PROGRESS" },
+    });
+
     // Move book to IN_PROGRESS
     await prisma.book.update({
       where: { id: bookId },

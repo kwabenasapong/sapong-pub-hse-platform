@@ -21,6 +21,13 @@ export async function POST(req: NextRequest) {
         where: { bookId_stepNumber: { bookId, stepNumber } },
         data: { status: "APPROVED", completedAt: new Date() },
       });
+      // Unlock the next step
+      if (stepNumber < 5) {
+        await prisma.workflowStep.update({
+          where: { bookId_stepNumber: { bookId, stepNumber: stepNumber + 1 } },
+          data: { status: "IN_PROGRESS" },
+        });
+      }
       if (stepNumber === 5) {
         await prisma.book.update({ where: { id: bookId }, data: { status: "COMPLETE" } });
       }
