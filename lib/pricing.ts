@@ -25,7 +25,7 @@ export function formatGhs(amount: number, rate: number): string {
 
 // ── Write a usage log record ──────────────────────────────────────────────────
 export async function logAiUsage(params: {
-  ministryId: string;
+  ministryId?: string;
   authorId?: string;
   bookId?: string;
   stepType: "analysis" | "outline" | "chapter_draft" | "front_back_matter" | "voice_deduction";
@@ -34,6 +34,7 @@ export async function logAiUsage(params: {
   outputTokens: number;
 }): Promise<void> {
   try {
+    if (!params.ministryId) return; // Cannot log without ministry — skip silently
     const costUsd = calcCostUsd(params.model, params.inputTokens, params.outputTokens);
     await prisma.aiUsageLog.create({
       data: {

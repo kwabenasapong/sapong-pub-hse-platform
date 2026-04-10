@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import Modal from "./Modal";
 import { Field, SelectField, FormActions } from "./FormFields";
 import { updateBook } from "@/lib/actions";
+import { useReferenceAuthors } from "@/lib/useReferenceAuthors";
 import { Translation, SizeCategory } from "@prisma/client";
 
 type Book = {
@@ -19,6 +20,7 @@ export default function EditBookModal({
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const { authors: refAuthors } = useReferenceAuthors();
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -56,8 +58,19 @@ export default function EditBookModal({
             { value: "SHORT",       label: "Short (30–65 pages)" },
           ]}
         />
-        <Field label="Reference Author" name="referenceAuthor"
-          defaultValue={book.referenceAuthor ?? ""} />
+        <div className="mb-3">
+          <label className="block text-xs font-medium text-stone-600 mb-1">Reference Author</label>
+          <input
+            name="referenceAuthor"
+            list="ref-authors-edit"
+            defaultValue={book.referenceAuthor ?? ""}
+            placeholder="e.g. Oyedepo"
+            className="w-full border border-stone-200 rounded px-3 py-2 text-sm text-stone-800 placeholder:text-stone-300 focus:outline-none focus:ring-1 focus:ring-amber-400 focus:border-amber-400"
+          />
+          <datalist id="ref-authors-edit">
+            {refAuthors.map((a) => <option key={a.id} value={a.name} />)}
+          </datalist>
+        </div>
         {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
         <FormActions onClose={onClose} submitting={pending} />
       </form>

@@ -2,6 +2,7 @@
 import { useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { setupNewClient } from "@/lib/actions";
+import { useReferenceAuthors } from "@/lib/useReferenceAuthors";
 import { Translation, SizeCategory } from "@prisma/client";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -99,6 +100,9 @@ export default function SetupWizardPage() {
 
   // Step 1 — Ministry
   const [ministry, setMinistry] = useState({ name: "", slug: "", logoUrl: "" });
+
+  // Reference authors from DB
+  const { authors: refAuthors } = useReferenceAuthors();
 
   // Step 2 — Author
   const [author, setAuthor] = useState({ name: "", credentials: "", bioText: "" });
@@ -414,8 +418,8 @@ export default function SetupWizardPage() {
                 <F label="Reference Author">
                   <select className={selectCls} value={voiceEdit.referenceAuthor}
                     onChange={(e) => setVoiceEdit({ ...voiceEdit, referenceAuthor: e.target.value })}>
-                    {["Oyedepo", "Adeyemi", "Munroe", "Ashimolowo"].map((a) => (
-                      <option key={a} value={a}>{a}</option>
+                    {refAuthors.map((a) => (
+                      <option key={a.id} value={a.name}>{a.name}</option>
                     ))}
                   </select>
                 </F>
@@ -464,7 +468,7 @@ export default function SetupWizardPage() {
                   onChange={(e) => setVoiceEdit({
                     tone: e.target.value.split(",").map((t) => t.trim()),
                     style: "", culturalMarkers: [], culturalBackground: "",
-                    referenceAuthor: "Oyedepo", referenceAuthorReason: "",
+                    referenceAuthor: refAuthors[0]?.name ?? "Oyedepo", referenceAuthorReason: "",
                     suggestedTranslation: "KJV", translationReason: "",
                     keyThemes: [], illustrationStyle: "", confidence: "low",
                   })} />

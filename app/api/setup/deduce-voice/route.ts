@@ -63,15 +63,13 @@ Base everything strictly on what is present in the sermon sample. Do not invent 
           try {
             const finalMsg = await claudeStream.finalMessage();
             const { input_tokens, output_tokens } = finalMsg.usage;
-            if (ministryId) {
-              await logAiUsage({
-                ministryId,
-                stepType: "voice_deduction",
-                model,
-                inputTokens:  input_tokens,
-                outputTokens: output_tokens,
-              });
-            }
+            await logAiUsage({
+              ministryId,      // may be undefined — logAiUsage handles gracefully
+              stepType: "voice_deduction",
+              model,
+              inputTokens:  input_tokens,
+              outputTokens: output_tokens,
+            });
           } catch { /* never break the stream */ }
         } catch (err) {
           controller.enqueue(

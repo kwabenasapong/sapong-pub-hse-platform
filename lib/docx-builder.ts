@@ -3,17 +3,20 @@ import {
   PageBreak, LevelFormat, BorderStyle, Header, Footer, SimpleField,
   NumberFormat, SectionType, FootnoteReferenceRun,
 } from "docx";
+import { getConfig } from "./config";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const PT   = (n: number) => n * 2;           // docx half-points
 const DXA  = (inches: number) => inches * 1440;
 
-const FONT         = "Georgia";
 const COLOR_BODY   = "1C1C1C";
 const COLOR_HEAD   = "1A1A1A";
 const COLOR_ACCENT = "7C5C3E";   // warm brown
 const COLOR_RULE   = "C8B99A";   // tan rule line
 const COLOR_CITE   = "7C5C3E";   // scripture citation
+
+// Module-level default — overridden at runtime by PlatformConfig inside buildBookDocx
+let FONT = "Georgia";
 
 // ── Scripture reference detector ──────────────────────────────────────────────
 // Matches: John 3:16  |  1 Cor. 13:4-7  |  Psalm 23:1  |  Rev. 22:20-21
@@ -373,6 +376,14 @@ export async function buildBookDocx(book: {
   }>;
   workflowSteps: Array<{ stepNumber: number; outputText: string | null }>;
 }): Promise<Buffer> {
+  // Read font and page size from PlatformConfig (DB-first, env fallback, default)
+  FONT             = await getConfig("exportFont") || "Georgia"; // reassigns module var
+  const exportSize = await getConfig("exportPageSize");   // default: letter
+
+  // Page dimensions: letter = 12240×15840 DXA, a4 = 11906×16838 DXA
+  const PAGE_WIDTH  = exportSize === "a4" ? 11906 : 12240;
+  const PAGE_HEIGHT = exportSize === "a4" ? 16838 : 15840;
+
   const frontBackText = book.workflowSteps.find((s) => s.stepNumber === 5)?.outputText ?? "";
   const sections      = parseFrontBackMatter(frontBackText);
   const bulletRef     = "book-bullets";
@@ -445,7 +456,7 @@ export async function buildBookDocx(book: {
 
   const pageProps = {
     page: {
-      size: { width: 12240, height: 15840 },
+      size: { width: PAGE_WIDTH, height: PAGE_HEIGHT },
       margin: { top: DXA(1), right: DXA(1.25), bottom: DXA(1), left: DXA(1.25) },
     },
   };
