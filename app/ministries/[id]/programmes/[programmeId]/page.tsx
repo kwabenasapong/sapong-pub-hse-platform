@@ -11,5 +11,10 @@ export default async function ProgrammeDetailPage({
 }) {
   const programme = await getProgrammeById(params.programmeId);
   if (!programme) notFound();
-  return <ProgrammeDetailClient programme={programme} ministryId={params.id} />;
+  return (
+    <ProgrammeDetailClient
+      programme={programme}
+      ministryId={params.id}
+    />
+  );
 }

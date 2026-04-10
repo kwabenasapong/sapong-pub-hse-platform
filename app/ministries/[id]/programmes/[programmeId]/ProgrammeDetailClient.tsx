@@ -6,7 +6,9 @@ import { PageHeader, Button, BookStatusBadge, TranslationBadge, SizeBadge, Workf
 import AddBookModal from "@/components/AddBookModal";
 import EditBookModal from "@/components/EditBookModal";
 import ConfirmDeleteDialog from "@/components/ConfirmDeleteDialog";
+import ProgrammeInstructionsEditor from "@/components/ProgrammeInstructionsEditor";
 import { deleteBook } from "@/lib/actions";
+import { MasterInstructions } from "@/lib/master-instructions";
 import { Translation, SizeCategory, BookStatus, WorkflowStatus } from "@prisma/client";
 
 type WorkflowStep = { stepNumber: number; status: WorkflowStatus };
@@ -19,6 +21,7 @@ type Book = {
 type Programme = {
   id: string; title: string; defaultTranslation: Translation;
   defaultReferenceAuthor: string | null; status: string;
+  masterInstructions: unknown;
   ministry: { id: string; name: string };
   author: { id: string; name: string };
   books: Book[];
@@ -166,6 +169,13 @@ export default function ProgrammeDetailClient({
           <span>{notStarted} not started</span>
         </div>
       </div>
+
+      {/* Programme Instructions */}
+      <ProgrammeInstructionsEditor
+        programmeId={programme.id}
+        initial={programme.masterInstructions as MasterInstructions | null}
+        onSaved={() => router.refresh()}
+      />
 
       {showAddBook && (
         <AddBookModal

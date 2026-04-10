@@ -82,6 +82,7 @@ model PublishingProgramme {
   title                  String
   defaultTranslation     Translation
   defaultReferenceAuthor String?
+  masterInstructions     Json?
   status                 ProgrammeStatus @default(ACTIVE)
   createdAt              DateTime        @default(now())
 

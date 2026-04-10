@@ -85,31 +85,34 @@ async function main() {
   console.log(`   ✅  Ministry: ${ministry.name}`);
 
   // Author
+  const AUTHOR_VOICE = {
+    tone: [
+      "Bold and declarative",
+      "Pastoral and personal",
+      "Theologically grounded",
+      "Culturally rooted",
+      "Direct when necessary",
+    ],
+    style: "Heavy Scripture anchoring with multiple cross-references. No hedging. Repetition used for emphasis — edit into one powerful statement, never remove entirely.",
+    keyThemes: ["Soul winning", "Faith", "Prayer", "Covenant", "Dominion", "Ministry"],
+    illustrationStyle: "Personal stories from banking career, family life in Ghana, hosting people, ministry experiences at Graceway Fountain Ministries",
+  };
+  const AUTHOR_CULTURE = {
+    background: "Former banker · Managing Director, PrecisionWorks Engineering Ltd · Previously Republic Investments Ltd · President, Apostolic Revival Network · Doctoral fellow of AIPA · Advisory boards incl. Chamber of Small-Scale Mining Ghana",
+    nationality: "Ghanaian",
+    markers: ["Ghana cedis", "Tema branch", "Walewale, northern Ghana"],
+    ministry: "Graceway Fountain Ministries, Accra, Ghana",
+  };
   const author = await prisma.author.upsert({
     where: { id: "author-kwame-seed" },
-    update: {},
+    update: { voiceProfile: AUTHOR_VOICE, culturalContext: AUTHOR_CULTURE },
     create: {
       id: "author-kwame-seed",
       ministryId: ministry.id,
       name: "Dr. Kusi-Boadum Kwame",
       credentials: "DTh, DPA (Hon. Causa), MBA Finance, BSc Maths, CPA, CMP",
-      voiceProfile: {
-        bold: true,
-        declarative: true,
-        pastoral: true,
-        directness: "high",
-        repetitionStyle: "emphasis",
-        avoidHedging: true,
-      },
-      culturalContext: {
-        country: "Ghana",
-        ministry: "Graceway Fountain Ministries",
-        currency: "Ghana cedis",
-        placeNames: {
-          temaBranch: "Tema branch",
-          walewale: "Walewale, northern Ghana",
-        },
-      },
+      voiceProfile: AUTHOR_VOICE,
+      culturalContext: AUTHOR_CULTURE,
       bioText:
         "Rev. Dr. Kwame Kusi-Boadum is the Founder and Senior Pastor of Graceway Fountain Ministries, Ghana. He holds a DTh, DPA (Hon. Causa), MBA Finance, BSc Mathematics, CPA, and CMP. He serves as Managing Director of PrecisionWorks Engineering Ltd, is President of the Apostolic Revival Network, a Doctoral Fellow of AIPA, and sits on several advisory boards including the Chamber of Small-Scale Mining Ghana. He is married to Lady Pastor Rose Kusi-Boadum, and they have three children.",
     },
@@ -117,9 +120,34 @@ async function main() {
   console.log(`   ✅  Author: ${author.name}`);
 
   // Programme
+  const PROGRAMME_MASTER_INSTRUCTIONS = {
+    authorTitle: "Founder and Senior Pastor",
+    neverUseTitle: "Head Pastor",
+    placeCorrections: [
+      { wrong: "Taifa",   correct: "Tema branch" },
+      { wrong: "Walwali", correct: "Walewale, northern Ghana" },
+    ],
+    ministryContacts: {
+      address:   "Accra, Ghana",
+      website:   "https://gracewayfountain.org",
+      email:     "info@gracewayfountain.org",
+      phone:     "(+233) 0241654472",
+      facebook:  "https://www.facebook.com/gwfgh",
+      instagram: "https://www.instagram.com/gracewayfountainministries",
+      youtube:   "https://youtube.com/@gracewayfountainministries",
+      tiktok:    "https://www.tiktok.com/@dr.kusiboadum",
+    },
+    standingCorrections: [
+      "Use 'Prayer' not 'Prayer of Activation' throughout",
+      "Never refer to the ministry as 'this church' — always 'Graceway Fountain Ministries'",
+      "Author title is always 'Founder and Senior Pastor' — never 'Head Pastor'",
+    ],
+    familyContext: "Married to Lady Pastor Rose Kusi-Boadum; three children",
+    professionalContext: "Managing Director of PrecisionWorks Engineering Ltd; previously Republic Investments Ltd; President of the Apostolic Revival Network; Doctoral Fellow of AIPA; sits on advisory boards including the Chamber of Small-Scale Mining Ghana",
+  };
   const programme = await prisma.publishingProgramme.upsert({
     where: { id: "prog-graceway-40-seed" },
-    update: {},
+    update: { masterInstructions: PROGRAMME_MASTER_INSTRUCTIONS },
     create: {
       id: "prog-graceway-40-seed",
       ministryId: ministry.id,
@@ -128,6 +156,7 @@ async function main() {
       defaultTranslation: "KJV",
       defaultReferenceAuthor: "Oyedepo",
       status: "ACTIVE",
+      masterInstructions: PROGRAMME_MASTER_INSTRUCTIONS,
     },
   });
   console.log(`   ✅  Programme: ${programme.title}`);
